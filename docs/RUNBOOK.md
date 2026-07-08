@@ -75,6 +75,14 @@ php artisan whisper:qoyod-test-contact
 
 The default name is `Wasif Test - DELETE`. This command creates only a Qoyod customer/contact and records the API response in `audit_logs`. It does not create invoices, payments, bills, products, or ZATCA-related records.
 
+To delete a known test contact by Qoyod ID:
+
+```bash
+php artisan whisper:qoyod-delete-test-contact 24
+```
+
+If Qoyod does not expose physical deletion for the contact endpoint, the command deactivates the contact with `status=Inactive` and records that fallback in `audit_logs`.
+
 ## Verification
 
 ```bash

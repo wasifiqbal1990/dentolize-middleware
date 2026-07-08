@@ -25,6 +25,40 @@ class LiveQoyodClient implements QoyodClient
         return $this->normalizeResponse($response->json(), $response->status());
     }
 
+    public function deleteCustomer(string $qoyodId): array
+    {
+        $response = $this->http()->delete('customers/'.$qoyodId);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Qoyod customer deletion failed with HTTP '.$response->status().'.');
+        }
+
+        return [
+            'id' => $qoyodId,
+            'status_code' => $response->status(),
+            'payload' => $response->json() ?? [],
+        ];
+    }
+
+    public function deactivateCustomer(string $qoyodId): array
+    {
+        $response = $this->http()->put('customers/'.$qoyodId, [
+            'contact' => [
+                'status' => 'Inactive',
+            ],
+        ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException('Qoyod customer deactivation failed with HTTP '.$response->status().'.');
+        }
+
+        return [
+            'id' => $qoyodId,
+            'status_code' => $response->status(),
+            'payload' => $response->json() ?? [],
+        ];
+    }
+
     public function createInvoice(array $payload): array
     {
         throw new RuntimeException('Live invoice creation is disabled until ZATCA behavior is resolved.');
