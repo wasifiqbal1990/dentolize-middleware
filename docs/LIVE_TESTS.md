@@ -54,7 +54,7 @@ This file tracks deliberate live-system smoke tests so they can be removed later
   - Contact `33` → deactivated via API after invoice `17` and payment `16` were created with the wrong VAT fallback. Qoyod did not expose a working delete endpoint for invoice payment `16`, and deleting invoice `17` was rejected after payment/accounting state existed.
   - Contact `34` → deactivated via API after the corrected rerun hit Qoyod's duplicate invoice reference constraint.
 - Final corrected sample flow retained in Qoyod:
-  - Contact `35`
+  - Contact `35` → deactivated via API on 2026-07-08 after the client-demo hold request.
   - Invoice `18`
   - Invoice reference `DENTO-INV-c19b788a-cf44-4f52-8c22-f13d3e43f741-corrected-0tax`
   - Invoice status verified by API: `Paid`
@@ -62,4 +62,9 @@ This file tracks deliberate live-system smoke tests so they can be removed later
   - Paid amount verified by API: `299.0`
   - Payment `17`
   - Payment reference `DENTO-PAY-bc33e980-1065-4f75-981b-7e83f619afd1-corrected-0tax`
+- Cleanup after client-demo hold request:
+  - Payment `17`: Qoyod returned `404` for `DELETE /invoice_payments/17`; no delete endpoint is exposed in the API collection.
+  - Invoice `18`: Qoyod rejected `DELETE /invoices/18` with `external_line_items` validation after payment/accounting state existed.
+  - Contact `35`: deactivated through the Qoyod API and verified as `Inactive`.
+  - Product `14`: Qoyod returned `404` for `DELETE /products/14`; product was renamed to `DELETED TEST Wasif Dentolize Service` and SKU `deleted-dentolize-service-wasif-20260708`.
 - Not created: patient-linked Qoyod expense, bill, or credit note. Dentolize did not expose patient-linked expenses for this patient through the tested API fields.
