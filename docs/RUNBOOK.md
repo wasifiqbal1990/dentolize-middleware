@@ -83,6 +83,16 @@ php artisan whisper:qoyod-delete-test-contact 24
 
 If Qoyod does not expose physical deletion for the contact endpoint, the command deactivates the contact with `status=Inactive` and records that fallback in `audit_logs`.
 
+## Import Dentolize Customers To Qoyod
+
+After adding both `DENTOLIZE_SESSION_COOKIE` and `QOYOD_API_KEY` to the ignored local `.env`, import a small customer batch with API calls only:
+
+```bash
+php artisan whisper:import-dentolize-customers --limit=5
+```
+
+This command fetches Dentolize patients through the GraphQL API and creates Qoyod contacts only. It does not use the browser and does not create invoices, payments, bills, products, or ZATCA-related records.
+
 ## Verification
 
 ```bash
