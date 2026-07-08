@@ -81,7 +81,7 @@ To delete a known test contact by Qoyod ID:
 php artisan whisper:qoyod-delete-test-contact 24
 ```
 
-If Qoyod does not expose physical deletion for the contact endpoint, the command deactivates the contact with `status=Inactive` and records that fallback in `audit_logs`.
+If Qoyod does not expose physical deletion for the contact endpoint, the command scrubs the contact fields, marks the contact with `status=Deleted`, disables POS visibility, and records that fallback in `audit_logs`.
 
 ## Import Dentolize Customers To Qoyod
 

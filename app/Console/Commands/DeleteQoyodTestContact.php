@@ -36,9 +36,9 @@ class DeleteQoyodTestContact extends Command
             }
 
             try {
-                $action = 'deactivate_test_customer';
+                $action = 'mark_deleted_test_customer';
                 $method = 'PUT';
-                $response = $qoyod->deactivateCustomer($qoyodId);
+                $response = $qoyod->markCustomerDeleted($qoyodId);
             } catch (Throwable $fallbackException) {
                 throw new RuntimeException($fallbackException->getMessage(), previous: $fallbackException);
             }
@@ -58,7 +58,7 @@ class DeleteQoyodTestContact extends Command
         if ($action === 'delete_test_customer') {
             $this->components->info("Deleted Qoyod test contact with id {$qoyodId}.");
         } else {
-            $this->components->info("Deactivated Qoyod test contact with id {$qoyodId}.");
+            $this->components->info("Marked Qoyod test contact {$qoyodId} as Deleted.");
         }
 
         return self::SUCCESS;

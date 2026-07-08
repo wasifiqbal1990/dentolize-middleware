@@ -116,7 +116,7 @@ class LiveQoyodClientTest extends TestCase
         ]);
     }
 
-    public function test_delete_test_contact_command_deactivates_when_delete_endpoint_is_unavailable(): void
+    public function test_delete_test_contact_command_marks_deleted_when_delete_endpoint_is_unavailable(): void
     {
         config([
             'whisper.qoyod_base_url' => 'https://api.qoyod.test/2.0/',
@@ -126,19 +126,24 @@ class LiveQoyodClientTest extends TestCase
         Http::fake([
             'https://api.qoyod.test/2.0/customers/24' => Http::sequence()
                 ->push([], 404)
-                ->push(['contact' => ['id' => 24, 'status' => 'Inactive']], 200),
+                ->push(['contact' => ['id' => 24, 'status' => 'Deleted', 'name' => 'DELETED TEST CONTACT 24']], 200),
         ]);
 
         $this->artisan('whisper:qoyod-delete-test-contact 24')
-            ->expectsOutputToContain('Deactivated Qoyod test contact')
+            ->expectsOutputToContain('Marked Qoyod test contact 24 as Deleted')
             ->assertSuccessful();
 
         $this->assertDatabaseHas('audit_logs', [
             'correlation_id' => 'qoyod-test-contact-delete-24',
-            'action' => 'deactivate_test_customer',
+            'action' => 'mark_deleted_test_customer',
             'target_system' => 'Qoyod',
             'response_code' => 200,
         ]);
+
+        Http::assertSent(fn (Request $request): bool => $request->method() === 'PUT'
+            && $request['contact']['status'] === 'Deleted'
+            && $request['contact']['name'] === 'DELETED TEST CONTACT 24'
+            && $request['contact']['pos'] === false);
     }
 
     public function test_test_contact_command_refuses_to_run_without_api_key(): void

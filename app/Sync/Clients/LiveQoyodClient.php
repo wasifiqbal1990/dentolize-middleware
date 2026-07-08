@@ -60,6 +60,46 @@ class LiveQoyodClient implements QoyodClient
         ];
     }
 
+    public function markCustomerDeleted(string $qoyodId): array
+    {
+        $response = $this->http()->put('customers/'.$qoyodId, [
+            'contact' => [
+                'name' => 'DELETED TEST CONTACT '.$qoyodId,
+                'organization' => '',
+                'email' => '',
+                'phone_number' => '',
+                'tax_number' => '',
+                'status' => 'Deleted',
+                'pos' => false,
+                'shipping_address' => [
+                    'shipping_address' => '',
+                    'shipping_city' => '',
+                    'shipping_state' => '',
+                    'shipping_zip' => '',
+                    'shipping_country' => '',
+                ],
+                'billing_address' => [
+                    'billing_address' => '',
+                    'billing_city' => '',
+                    'billing_state' => '',
+                    'billing_zip' => '',
+                    'billing_country' => '',
+                    'building_number' => '',
+                ],
+            ],
+        ]);
+
+        if ($response->failed()) {
+            throw new RuntimeException($this->failureMessage('Qoyod customer deleted-status update', $response));
+        }
+
+        return [
+            'id' => $qoyodId,
+            'status_code' => $response->status(),
+            'payload' => $response->json() ?? [],
+        ];
+    }
+
     public function createInvoice(array $payload): array
     {
         $response = $this->http()->post('invoices', $payload);
