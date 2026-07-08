@@ -14,6 +14,7 @@ class SupportUtilitiesTest extends TestCase
         $this->assertSame('DENTO-INV-21038', ReferenceBuilder::for('invoice', '#21038'));
         $this->assertSame('DENTO-CUST-patient-123', ReferenceBuilder::for('patient', 'patient-123'));
         $this->assertSame('DENTO-EXPPAY-abc', ReferenceBuilder::for('expense_payment', 'abc'));
+        $this->assertSame('DENTO-INV-21038-corrected-0tax', ReferenceBuilder::for('invoice', '#21038', 'corrected-0tax'));
     }
 
     public function test_saudi_phone_numbers_are_normalized_to_e164(): void

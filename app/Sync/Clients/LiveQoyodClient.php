@@ -3,6 +3,7 @@
 namespace App\Sync\Clients;
 
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -19,7 +20,7 @@ class LiveQoyodClient implements QoyodClient
             ->post('customers', $this->withoutLocalReference($payload));
 
         if ($response->failed()) {
-            throw new RuntimeException('Qoyod customer creation failed with HTTP '.$response->status().'.');
+            throw new RuntimeException($this->failureMessage('Qoyod customer creation', $response));
         }
 
         return $this->normalizeResponse($response->json(), $response->status());
@@ -30,7 +31,7 @@ class LiveQoyodClient implements QoyodClient
         $response = $this->http()->delete('customers/'.$qoyodId);
 
         if ($response->failed()) {
-            throw new RuntimeException('Qoyod customer deletion failed with HTTP '.$response->status().'.');
+            throw new RuntimeException($this->failureMessage('Qoyod customer deletion', $response));
         }
 
         return [
@@ -49,7 +50,7 @@ class LiveQoyodClient implements QoyodClient
         ]);
 
         if ($response->failed()) {
-            throw new RuntimeException('Qoyod customer deactivation failed with HTTP '.$response->status().'.');
+            throw new RuntimeException($this->failureMessage('Qoyod customer deactivation', $response));
         }
 
         return [
@@ -61,12 +62,24 @@ class LiveQoyodClient implements QoyodClient
 
     public function createInvoice(array $payload): array
     {
-        throw new RuntimeException('Live invoice creation is disabled until ZATCA behavior is resolved.');
+        $response = $this->http()->post('invoices', $payload);
+
+        if ($response->failed()) {
+            throw new RuntimeException($this->failureMessage('Qoyod invoice creation', $response));
+        }
+
+        return $this->normalizeDocumentResponse($response->json(), $response->status(), 'invoice');
     }
 
     public function createInvoicePayment(array $payload): array
     {
-        throw new RuntimeException('Live payment creation is disabled until invoice sync is approved.');
+        $response = $this->http()->post('invoice_payments', $payload);
+
+        if ($response->failed()) {
+            throw new RuntimeException($this->failureMessage('Qoyod invoice payment creation', $response));
+        }
+
+        return $this->normalizeDocumentResponse($response->json(), $response->status(), 'invoice_payment');
     }
 
     public function readInvoice(string $qoyodId): ?array
@@ -110,5 +123,28 @@ class LiveQoyodClient implements QoyodClient
             'status_code' => $status,
             'payload' => $payload,
         ];
+    }
+
+    private function normalizeDocumentResponse(array $payload, int $status, string $key): array
+    {
+        $document = $payload[$key] ?? $payload;
+        $id = $document['id'] ?? $payload['id'] ?? null;
+
+        if ($id === null) {
+            throw new RuntimeException('Qoyod response did not include a '.$key.' id.');
+        }
+
+        return [
+            'id' => (string) $id,
+            'status_code' => $status,
+            'payload' => $payload,
+        ];
+    }
+
+    private function failureMessage(string $action, Response $response): string
+    {
+        $body = $response->json() ?? $response->body();
+
+        return $action.' failed with HTTP '.$response->status().': '.json_encode($body, JSON_UNESCAPED_SLASHES);
     }
 }

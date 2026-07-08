@@ -14,11 +14,14 @@ class ReferenceBuilder
         'treasury' => 'DENTO-TREAS',
     ];
 
-    public static function for(string $entityType, string $dentolizeId): string
+    public static function for(string $entityType, string $dentolizeId, string $suffix = ''): string
     {
         $prefix = self::PREFIXES[$entityType] ?? 'DENTO-'.strtoupper($entityType);
         $id = ltrim(trim($dentolizeId), '#');
+        $suffix = trim($suffix);
 
-        return "{$prefix}-{$id}";
+        return $suffix === ''
+            ? "{$prefix}-{$id}"
+            : "{$prefix}-{$id}-{$suffix}";
     }
 }

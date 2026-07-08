@@ -38,4 +38,28 @@ This file tracks deliberate live-system smoke tests so they can be removed later
   - `invoices(..., patient: ID)` is available for patient-linked invoices.
   - `payments(..., patient: ID)` is available with valid fields including `id`, `amount`, `createdAt`, and parent `invoice`.
   - `expenses(...)` is available as a clinic-level resource, but `expenses(..., patient: ID)` is not accepted and `patientExpenses` does not exist.
-- Important: No invoice, payment, bill, product, or ZATCA-related Qoyod record has been created for this patient-flow probe.
+### Dentolize Patient Flow Import To Qoyod
+
+- Date: 2026-07-08
+- Patient: Dentolize `f39ee0df-6433-4e7b-9d2b-f09e206592fc`
+- Dentolize write scope: None. All Dentolize operations were read-only API calls.
+- Qoyod product created for the test:
+  - Product `14`
+  - SKU `dentolize-service-wasif-20260708`
+  - Purpose: temporary sales service product for invoice line items, because Qoyod product `13` is an expense product and cannot be used on sales invoices.
+- Partial/cleanup attempts:
+  - Contact `30` → deactivated via API after an earlier failed flow run.
+  - Contact `31` → deactivated via API after invoice creation failed with expense product `13`.
+  - Contact `32` → deactivated via API; draft invoice `16` was deleted via API after payment was rejected for a draft invoice.
+  - Contact `33` → deactivated via API after invoice `17` and payment `16` were created with the wrong VAT fallback. Qoyod did not expose a working delete endpoint for invoice payment `16`, and deleting invoice `17` was rejected after payment/accounting state existed.
+  - Contact `34` → deactivated via API after the corrected rerun hit Qoyod's duplicate invoice reference constraint.
+- Final corrected sample flow retained in Qoyod:
+  - Contact `35`
+  - Invoice `18`
+  - Invoice reference `DENTO-INV-c19b788a-cf44-4f52-8c22-f13d3e43f741-corrected-0tax`
+  - Invoice status verified by API: `Paid`
+  - Invoice total verified by API: `299.0`
+  - Paid amount verified by API: `299.0`
+  - Payment `17`
+  - Payment reference `DENTO-PAY-bc33e980-1065-4f75-981b-7e83f619afd1-corrected-0tax`
+- Not created: patient-linked Qoyod expense, bill, or credit note. Dentolize did not expose patient-linked expenses for this patient through the tested API fields.
