@@ -65,6 +65,16 @@ Before switching away from fake adapters:
 - Fill `QOYOD_API_KEY`, `QOYOD_GENERIC_PRODUCT_ID`, `BRANCH_INVENTORY_MAP`, and `TREASURY_ACCOUNT_MAP`.
 - Decide how insurance splits, zero-value invoices, non-15% VAT, voids, and refunds should appear in Qoyod.
 
+## Safe Qoyod API Smoke Test
+
+After adding `QOYOD_API_KEY` to the ignored local `.env`, you can create a contact-only smoke test:
+
+```bash
+php artisan whisper:qoyod-test-contact
+```
+
+The default name is `Wasif Test - DELETE`. This command creates only a Qoyod customer/contact and records the API response in `audit_logs`. It does not create invoices, payments, bills, products, or ZATCA-related records.
+
 ## Verification
 
 ```bash

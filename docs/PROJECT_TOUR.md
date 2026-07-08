@@ -51,8 +51,8 @@ Important tables:
 
 The local skeleton is ready for the next implementation slices:
 
+- Live Qoyod client expansion beyond the contact-only smoke test.
 - Expense and expense-payment handlers.
-- Live Qoyod HTTP client.
 - Dentolize payload capture and live reader/backfill source.
 - ZATCA-safe invoice status behavior.
 - Daily report and alert delivery.
