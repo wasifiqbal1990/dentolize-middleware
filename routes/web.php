@@ -3,14 +3,11 @@
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\RetryController;
-use App\Http\Controllers\DentolizeWebhookController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return redirect('/admin');
 });
-
-Route::post('/webhooks/dentolize', DentolizeWebhookController::class);
 
 Route::get('/admin/login', [AuthController::class, 'showLogin']);
 Route::post('/admin/auth/login', [AuthController::class, 'login']);
