@@ -43,6 +43,54 @@ class WebhookAndHandlersTest extends TestCase
         $this->assertSame(0, Inbox::query()->count());
     }
 
+    public function test_webhook_accepts_verify_token_from_body_without_storing_it(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $response = $this->postJson('/webhooks/dentolize', [
+            'verifyToken' => 'secret-token',
+            'event_id' => 'evt-patient-body-token',
+            'event_type' => 'New Patient',
+            'data' => $this->patientPayload(),
+        ]);
+
+        $response->assertOk()->assertJson(['status' => 'received']);
+
+        $inbox = Inbox::query()->where('dentolize_event_id', 'evt-patient-body-token')->firstOrFail();
+
+        $this->assertArrayNotHasKey('verifyToken', $inbox->raw_payload);
+    }
+
+    public function test_webhook_accepts_verify_token_from_query_string(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $response = $this->postJson('/webhooks/dentolize?verify_token=secret-token', [
+            'event_id' => 'evt-patient-query-token',
+            'event_type' => 'New Patient',
+            'data' => $this->patientPayload(),
+        ]);
+
+        $response->assertOk()->assertJson(['status' => 'received']);
+        $this->assertDatabaseHas('inboxes', ['dentolize_event_id' => 'evt-patient-query-token', 'processing_status' => 'done']);
+    }
+
+    public function test_webhook_processes_supported_arabic_event_names(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $response = $this->postJson('/webhooks/dentolize', [
+            'verifyToken' => 'secret-token',
+            'event_id' => 'evt-patient-arabic',
+            'event_type' => 'مريض جديد',
+            'data' => $this->patientPayload(),
+        ]);
+
+        $response->assertOk()->assertJson(['status' => 'received']);
+        $this->assertDatabaseHas('inboxes', ['dentolize_event_id' => 'evt-patient-arabic', 'processing_status' => 'done']);
+        $this->assertDatabaseHas('sync_maps', ['entity_type' => 'patient', 'dentolize_id' => 'patient-1', 'status' => 'transferred']);
+    }
+
     public function test_webhook_dedupes_replayed_event_id(): void
     {
         config(['whisper.webhook_verify_token' => 'secret-token']);

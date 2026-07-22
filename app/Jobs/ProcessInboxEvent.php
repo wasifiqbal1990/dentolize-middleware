@@ -23,10 +23,11 @@ class ProcessInboxEvent implements ShouldQueue
         $inbox = Inbox::query()->findOrFail($this->inboxId);
         $payload = $inbox->raw_payload;
         $data = $payload['data'] ?? $payload;
+        $eventType = $this->normalizeEventType($inbox->event_type);
 
         $inbox->update(['processing_status' => 'processing']);
 
-        match ($inbox->event_type) {
+        match ($eventType) {
             'New Patient' => $patientHandler->handle($data),
             'New Invoice' => $invoiceHandler->handle($data),
             'New Payment' => $paymentHandler->handle($data),
@@ -34,8 +35,18 @@ class ProcessInboxEvent implements ShouldQueue
         };
 
         $inbox->update([
-            'processing_status' => in_array($inbox->event_type, ['New Patient', 'New Invoice', 'New Payment'], true) ? 'done' : 'skipped',
+            'processing_status' => in_array($eventType, ['New Patient', 'New Invoice', 'New Payment'], true) ? 'done' : 'skipped',
             'processed_at' => now(),
         ]);
+    }
+
+    private function normalizeEventType(string $eventType): string
+    {
+        return match ($eventType) {
+            'مريض جديد', 'new_patient', 'patient.created' => 'New Patient',
+            'فاتورة جديدة', 'new_invoice', 'invoice.created' => 'New Invoice',
+            'دفعة جديدة', 'new_payment', 'payment.created' => 'New Payment',
+            default => $eventType,
+        };
     }
 }

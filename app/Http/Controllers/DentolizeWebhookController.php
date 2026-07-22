@@ -12,13 +12,14 @@ class DentolizeWebhookController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $expected = (string) config('whisper.webhook_verify_token');
-        $provided = (string) $request->header('X-Dentolize-Verify-Token', '');
+        $payload = $request->json()->all();
+        $provided = $this->verificationToken($request, $payload);
 
         if (! hash_equals($expected, $provided)) {
             return response()->json(['message' => 'Invalid verify token'], 401);
         }
 
-        $payload = $request->json()->all();
+        $payload = $this->withoutVerifyToken($payload);
         $eventId = $payload['event_id'] ?? hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
         $eventType = $payload['event_type'] ?? 'Unknown';
 
@@ -43,5 +44,33 @@ class DentolizeWebhookController extends Controller
             'status' => $inbox->wasRecentlyCreated ? 'received' : 'duplicate',
             'inbox_id' => $inbox->id,
         ]);
+    }
+
+    private function verificationToken(Request $request, array $payload): string
+    {
+        foreach (['X-Dentolize-Verify-Token', 'X-Verify-Token', 'Verify-Token'] as $header) {
+            $token = (string) $request->header($header, '');
+
+            if ($token !== '') {
+                return $token;
+            }
+        }
+
+        foreach (['verify_token', 'verifyToken', 'token'] as $key) {
+            $token = (string) ($request->query($key) ?? $payload[$key] ?? '');
+
+            if ($token !== '') {
+                return $token;
+            }
+        }
+
+        return '';
+    }
+
+    private function withoutVerifyToken(array $payload): array
+    {
+        unset($payload['verify_token'], $payload['verifyToken'], $payload['token']);
+
+        return $payload;
     }
 }
