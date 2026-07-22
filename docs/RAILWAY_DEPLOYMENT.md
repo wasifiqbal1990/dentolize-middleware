@@ -20,7 +20,7 @@ With this mode, Dentolize webhook events are captured in the middleware database
 In the Railway app service:
 
 - Source Repo: `wasifiqbal1990/dentolize-middleware`
-- Build Command: `npm run build`
+- Build Command: leave empty
 - Pre-Deploy Command: `chmod +x ./railway/init-app.sh && sh ./railway/init-app.sh`
 - Public Networking: generate a Railway domain
 
