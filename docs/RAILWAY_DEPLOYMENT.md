@@ -25,6 +25,7 @@ In the Railway app service:
 - Public Networking: generate a Railway domain
 
 Railway auto-detects Laravel and runs it with PHP-FPM/Caddy.
+The repository includes `nixpacks.toml` with `providers = ["php"]` so Railway does not run a Node/npm build for this webhook-only app.
 
 ## Required Variables
 
