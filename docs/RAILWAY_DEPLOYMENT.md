@@ -15,6 +15,15 @@ QUEUE_CONNECTION=sync
 
 With this mode, Dentolize webhook events are captured in the middleware database and processed through fake Qoyod storage. It does not automatically create live Qoyod invoices or payments.
 
+After client approval for live writes, switch the app service to:
+
+```env
+WHISPER_ADAPTER_MODE=live
+QOYOD_API_KEY=replace-with-live-qoyod-key
+```
+
+Keep `QUEUE_CONNECTION=sync` only for the temporary smoke test. Before sustained production traffic, use a database queue worker so Qoyod downtime does not block Dentolize webhook delivery.
+
 ## App Service Settings
 
 In the Railway app service:

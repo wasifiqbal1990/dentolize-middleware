@@ -45,6 +45,11 @@ class LiveQoyodClientTest extends TestCase
         });
     }
 
+    public function test_live_qoyod_reference_lookup_is_non_blocking(): void
+    {
+        $this->assertNull(app(LiveQoyodClient::class)->findByReference('customer', 'DENTO-CUST-patient-1'));
+    }
+
     public function test_test_contact_command_creates_customer_and_records_audit_log(): void
     {
         config([

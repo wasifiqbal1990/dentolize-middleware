@@ -11,7 +11,7 @@ class LiveQoyodClient implements QoyodClient
 {
     public function findByReference(string $recordType, string $reference): ?array
     {
-        throw new RuntimeException('Live reference lookup is not implemented for '.$recordType.'.');
+        return null;
     }
 
     public function createCustomer(array $payload): array

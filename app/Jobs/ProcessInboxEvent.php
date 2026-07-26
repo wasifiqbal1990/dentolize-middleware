@@ -8,6 +8,7 @@ use App\Sync\Handlers\PatientHandler;
 use App\Sync\Handlers\PaymentHandler;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Throwable;
 
 class ProcessInboxEvent implements ShouldQueue
 {
@@ -27,12 +28,27 @@ class ProcessInboxEvent implements ShouldQueue
 
         $inbox->update(['processing_status' => 'processing']);
 
-        match ($eventType) {
-            'New Patient' => $patientHandler->handle($data),
-            'New Invoice' => $invoiceHandler->handle($data),
-            'New Payment' => $paymentHandler->handle($data),
-            default => null,
-        };
+        try {
+            match ($eventType) {
+                'New Patient' => $patientHandler->handle($data),
+                'New Invoice' => $invoiceHandler->handle($data),
+                'New Payment' => $paymentHandler->handle($data),
+                default => null,
+            };
+        } catch (Throwable $exception) {
+            report($exception);
+
+            $inbox->update([
+                'processing_status' => 'failed',
+                'headers' => [
+                    ...($inbox->headers ?? []),
+                    'last_error' => $exception->getMessage(),
+                ],
+                'processed_at' => now(),
+            ]);
+
+            return;
+        }
 
         $inbox->update([
             'processing_status' => in_array($eventType, ['New Patient', 'New Invoice', 'New Payment'], true) ? 'done' : 'skipped',

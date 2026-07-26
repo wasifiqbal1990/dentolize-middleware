@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\Inbox;
 use App\Models\SyncMap;
+use App\Sync\Clients\QoyodClient;
 use App\Sync\Handlers\InvoiceHandler;
 use App\Sync\Handlers\PatientHandler;
 use App\Sync\Handlers\PaymentHandler;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use RuntimeException;
 use Tests\TestCase;
 
 class WebhookAndHandlersTest extends TestCase
@@ -106,6 +108,52 @@ class WebhookAndHandlersTest extends TestCase
 
         $this->assertSame(1, Inbox::query()->count());
         $this->assertSame(1, SyncMap::query()->where('entity_type', 'patient')->count());
+    }
+
+    public function test_webhook_marks_inbox_failed_when_processing_throws(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $this->app->bind(QoyodClient::class, fn () => new class implements QoyodClient
+        {
+            public function findByReference(string $recordType, string $reference): ?array
+            {
+                return null;
+            }
+
+            public function createCustomer(array $payload): array
+            {
+                throw new RuntimeException('Qoyod unavailable');
+            }
+
+            public function createInvoice(array $payload): array
+            {
+                throw new RuntimeException('Qoyod unavailable');
+            }
+
+            public function createInvoicePayment(array $payload): array
+            {
+                throw new RuntimeException('Qoyod unavailable');
+            }
+
+            public function readInvoice(string $qoyodId): ?array
+            {
+                return null;
+            }
+        });
+
+        $response = $this->postJson('/webhooks/dentolize', [
+            'event_id' => 'evt-patient-qoyod-down',
+            'event_type' => 'New Patient',
+            'data' => $this->patientPayload(),
+        ], ['X-Dentolize-Verify-Token' => 'secret-token']);
+
+        $response->assertOk()->assertJson(['status' => 'received']);
+
+        $inbox = Inbox::query()->where('dentolize_event_id', 'evt-patient-qoyod-down')->firstOrFail();
+
+        $this->assertSame('failed', $inbox->processing_status);
+        $this->assertSame('Qoyod unavailable', $inbox->headers['last_error']);
     }
 
     public function test_patient_handler_is_idempotent_and_audited(): void

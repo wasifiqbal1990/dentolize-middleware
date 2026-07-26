@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Sync\Clients\DentolizeClient;
 use App\Sync\Clients\FakeDentolizeClient;
 use App\Sync\Clients\FakeQoyodClient;
+use App\Sync\Clients\LiveQoyodClient;
 use App\Sync\Clients\QoyodClient;
 use Illuminate\Support\ServiceProvider;
 
@@ -15,7 +16,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(QoyodClient::class, FakeQoyodClient::class);
+        $this->app->bind(QoyodClient::class, function () {
+            return strtolower((string) config('whisper.adapter_mode')) === 'live'
+                ? $this->app->make(LiveQoyodClient::class)
+                : $this->app->make(FakeQoyodClient::class);
+        });
+
         $this->app->bind(DentolizeClient::class, FakeDentolizeClient::class);
     }
 
