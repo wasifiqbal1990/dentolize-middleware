@@ -12,5 +12,9 @@ interface QoyodClient
 
     public function createInvoicePayment(array $payload): array;
 
+    public function createSimpleBill(array $payload): array;
+
+    public function createSimpleBillPayment(array $payload): array;
+
     public function readInvoice(string $qoyodId): ?array;
 }

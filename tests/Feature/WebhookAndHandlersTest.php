@@ -6,6 +6,8 @@ use App\Models\AuditLog;
 use App\Models\Inbox;
 use App\Models\SyncMap;
 use App\Sync\Clients\QoyodClient;
+use App\Sync\Handlers\ExpenseHandler;
+use App\Sync\Handlers\ExpensePaymentHandler;
 use App\Sync\Handlers\InvoiceHandler;
 use App\Sync\Handlers\PatientHandler;
 use App\Sync\Handlers\PaymentHandler;
@@ -136,6 +138,16 @@ class WebhookAndHandlersTest extends TestCase
                 throw new RuntimeException('Qoyod unavailable');
             }
 
+            public function createSimpleBill(array $payload): array
+            {
+                throw new RuntimeException('Qoyod unavailable');
+            }
+
+            public function createSimpleBillPayment(array $payload): array
+            {
+                throw new RuntimeException('Qoyod unavailable');
+            }
+
             public function readInvoice(string $qoyodId): ?array
             {
                 return null;
@@ -196,6 +208,86 @@ class WebhookAndHandlersTest extends TestCase
         $this->assertDatabaseHas('sync_maps', ['entity_type' => 'payment', 'dentolize_id' => 'payment-1', 'qoyod_reference' => 'DENTO-PAY-payment-1']);
     }
 
+    public function test_expense_handler_creates_simple_bill(): void
+    {
+        $syncMap = app(ExpenseHandler::class)->handle($this->expensePayload());
+
+        $this->assertSame('transferred', $syncMap->status);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'expense',
+            'dentolize_id' => 'expense-1',
+            'qoyod_reference' => 'DENTO-EXP-expense-1',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'create_simple_bill',
+            'endpoint' => '/simple_bills',
+        ]);
+    }
+
+    public function test_expense_payment_waits_when_expense_dependency_is_missing(): void
+    {
+        $syncMap = app(ExpensePaymentHandler::class)->handle($this->expensePaymentPayload());
+
+        $this->assertSame('pending', $syncMap->status);
+        $this->assertSame('Whisper', $syncMap->rejected_by);
+        $this->assertStringContainsString('expense dependency missing', $syncMap->last_error);
+    }
+
+    public function test_expense_payment_transfers_after_expense_exists(): void
+    {
+        app(ExpenseHandler::class)->handle($this->expensePayload());
+
+        $syncMap = app(ExpensePaymentHandler::class)->handle($this->expensePaymentPayload());
+
+        $this->assertSame('transferred', $syncMap->status);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'expense_payment',
+            'dentolize_id' => 'expense-payment-1',
+            'qoyod_reference' => 'DENTO-EXPPAY-expense-payment-1',
+        ]);
+    }
+
+    public function test_webhook_processes_supported_arabic_expense_event_names(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $response = $this->postJson('/webhooks/dentolize', [
+            'verifyToken' => 'secret-token',
+            'event_id' => 'evt-expense-arabic',
+            'event_type' => 'مصروفات جديدة',
+            'data' => $this->expensePayload(),
+        ]);
+
+        $response->assertOk()->assertJson(['status' => 'received']);
+        $this->assertDatabaseHas('inboxes', ['dentolize_event_id' => 'evt-expense-arabic', 'processing_status' => 'done']);
+        $this->assertDatabaseHas('sync_maps', ['entity_type' => 'expense', 'dentolize_id' => 'expense-1', 'status' => 'transferred']);
+    }
+
+    public function test_webhook_captures_custom_records_without_qoyod_write(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $response = $this->postJson('/webhooks/dentolize', [
+            'verifyToken' => 'secret-token',
+            'event_id' => 'evt-custom-operation-1',
+            'event_type' => 'إجراء جديد',
+            'data' => [
+                'id' => 'operation-1',
+                'name' => 'Custom dental operation',
+                'createdAt' => '2026-07-08T10:00:00+03:00',
+            ],
+        ]);
+
+        $response->assertOk()->assertJson(['status' => 'received']);
+        $this->assertDatabaseHas('inboxes', ['dentolize_event_id' => 'evt-custom-operation-1', 'processing_status' => 'skipped']);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'custom_record',
+            'dentolize_id' => 'operation-1',
+            'status' => 'skipped',
+            'rejected_by' => 'Whisper',
+        ]);
+    }
+
     private function patientPayload(): array
     {
         return [
@@ -229,6 +321,33 @@ class WebhookAndHandlersTest extends TestCase
             'invoiceId' => '#21038',
             'invoice' => ['id' => 'invoice-1', 'invoiceId' => '#21038'],
             'amount' => '286.35',
+            'date' => '2026-07-08',
+            'treasury' => ['id' => 'cash'],
+        ];
+    }
+
+    private function expensePayload(): array
+    {
+        return [
+            'id' => 'expense-1',
+            'name' => 'Dental supplies',
+            'type' => 'Supplies',
+            'supplier' => ['id' => 'supplier-1', 'name' => 'Demo Supplier'],
+            'quantity' => '2',
+            'unitPrice' => '75.50',
+            'total' => '151.00',
+            'taxPercent' => '15',
+            'date' => '2026-07-08',
+            'treasury' => ['id' => 'cash'],
+        ];
+    }
+
+    private function expensePaymentPayload(): array
+    {
+        return [
+            'id' => 'expense-payment-1',
+            'expense' => ['id' => 'expense-1'],
+            'amount' => '151.00',
             'date' => '2026-07-08',
             'treasury' => ['id' => 'cash'],
         ];

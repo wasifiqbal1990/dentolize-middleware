@@ -50,6 +50,72 @@ class LiveQoyodClientTest extends TestCase
         $this->assertNull(app(LiveQoyodClient::class)->findByReference('customer', 'DENTO-CUST-patient-1'));
     }
 
+    public function test_live_qoyod_client_posts_simple_bill_with_api_key_header(): void
+    {
+        config([
+            'whisper.qoyod_base_url' => 'https://api.qoyod.test/2.0/',
+            'whisper.qoyod_api_key' => 'test-key',
+        ]);
+
+        Http::fake([
+            'https://api.qoyod.test/2.0/simple_bills' => Http::response([
+                'simple_bill' => ['id' => 789, 'reference' => 'DENTO-EXP-expense-1'],
+            ], 201),
+        ]);
+
+        $response = app(LiveQoyodClient::class)->createSimpleBill([
+            'simple_bill' => [
+                'vendor_id' => '1',
+                'reference' => 'DENTO-EXP-expense-1',
+                'description' => 'Dental supplies',
+                'issue_date' => '2026-07-08',
+                'status' => 'Approved',
+                'line_items' => [[
+                    'description' => 'Dental supplies',
+                    'quantity' => '2',
+                    'unit_price' => '75.50',
+                    'tax_percent' => '15',
+                ]],
+            ],
+        ]);
+
+        $this->assertSame('789', $response['id']);
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.qoyod.test/2.0/simple_bills'
+            && $request->hasHeader('API-KEY', 'test-key')
+            && $request['simple_bill']['reference'] === 'DENTO-EXP-expense-1');
+    }
+
+    public function test_live_qoyod_client_posts_simple_bill_payment_with_api_key_header(): void
+    {
+        config([
+            'whisper.qoyod_base_url' => 'https://api.qoyod.test/2.0/',
+            'whisper.qoyod_api_key' => 'test-key',
+        ]);
+
+        Http::fake([
+            'https://api.qoyod.test/2.0/simple_bill_payments' => Http::response([
+                'simple_bill_payment' => ['id' => 790, 'reference' => 'DENTO-EXPPAY-expense-payment-1'],
+            ], 201),
+        ]);
+
+        $response = app(LiveQoyodClient::class)->createSimpleBillPayment([
+            'simple_bill_payment' => [
+                'reference' => 'DENTO-EXPPAY-expense-payment-1',
+                'simple_bill_id' => '789',
+                'account_id' => '7',
+                'date' => '2026-07-08',
+                'amount' => '151.00',
+            ],
+        ]);
+
+        $this->assertSame('790', $response['id']);
+
+        Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.qoyod.test/2.0/simple_bill_payments'
+            && $request->hasHeader('API-KEY', 'test-key')
+            && $request['simple_bill_payment']['reference'] === 'DENTO-EXPPAY-expense-payment-1');
+    }
+
     public function test_test_contact_command_creates_customer_and_records_audit_log(): void
     {
         config([

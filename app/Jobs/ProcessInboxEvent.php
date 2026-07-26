@@ -3,6 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\Inbox;
+use App\Sync\Handlers\CustomRecordHandler;
+use App\Sync\Handlers\ExpenseHandler;
+use App\Sync\Handlers\ExpensePaymentHandler;
 use App\Sync\Handlers\InvoiceHandler;
 use App\Sync\Handlers\PatientHandler;
 use App\Sync\Handlers\PaymentHandler;
@@ -20,6 +23,9 @@ class ProcessInboxEvent implements ShouldQueue
         PatientHandler $patientHandler,
         InvoiceHandler $invoiceHandler,
         PaymentHandler $paymentHandler,
+        ExpenseHandler $expenseHandler,
+        ExpensePaymentHandler $expensePaymentHandler,
+        CustomRecordHandler $customRecordHandler,
     ): void {
         $inbox = Inbox::query()->findOrFail($this->inboxId);
         $payload = $inbox->raw_payload;
@@ -33,6 +39,9 @@ class ProcessInboxEvent implements ShouldQueue
                 'New Patient' => $patientHandler->handle($data),
                 'New Invoice' => $invoiceHandler->handle($data),
                 'New Payment' => $paymentHandler->handle($data),
+                'New Expense' => $expenseHandler->handle($data),
+                'New Expense Payment' => $expensePaymentHandler->handle($data),
+                'Custom Record' => $customRecordHandler->handle($data, $inbox->event_type),
                 default => null,
             };
         } catch (Throwable $exception) {
@@ -51,7 +60,10 @@ class ProcessInboxEvent implements ShouldQueue
         }
 
         $inbox->update([
-            'processing_status' => in_array($eventType, ['New Patient', 'New Invoice', 'New Payment'], true) ? 'done' : 'skipped',
+            'processing_status' => match ($eventType) {
+                'New Patient', 'New Invoice', 'New Payment', 'New Expense', 'New Expense Payment' => 'done',
+                default => 'skipped',
+            },
             'processed_at' => now(),
         ]);
     }
@@ -62,6 +74,9 @@ class ProcessInboxEvent implements ShouldQueue
             'مريض جديد', 'new_patient', 'patient.created' => 'New Patient',
             'فاتورة جديدة', 'new_invoice', 'invoice.created' => 'New Invoice',
             'دفعة جديدة', 'new_payment', 'payment.created' => 'New Payment',
+            'مصروفات جديدة', 'مصروف جديد', 'new_expense', 'expense.created' => 'New Expense',
+            'مدفوعات المصروفات', 'مدفوعات مصروفات جديدة', 'new_expense_payment', 'expense_payment.created' => 'New Expense Payment',
+            'إجراء جديد', 'عملية جديدة', 'خزانة جديدة', 'new_operation', 'operation.created', 'treasury.created' => 'Custom Record',
             default => $eventType,
         };
     }

@@ -66,6 +66,7 @@ QOYOD_API_KEY=
 QOYOD_GENERIC_PRODUCT_ID=1
 QOYOD_DEFAULT_INVENTORY_ID=1
 QOYOD_DEFAULT_ACCOUNT_ID=1
+QOYOD_DEFAULT_VENDOR_ID=1
 VAT_RATE=15
 ```
 
@@ -105,3 +106,15 @@ Expected response:
 ```json
 {"status":"received","inbox_id":1}
 ```
+
+## Supported Dentolize Events
+
+The webhook currently processes these accounting-facing events:
+
+- `مريض جديد` / `New Patient` → Qoyod customer
+- `فاتورة جديدة` / `New Invoice` → Qoyod invoice
+- `دفعة جديدة` / `New Payment` → Qoyod invoice payment
+- `مصروفات جديدة` / `New Expense` → Qoyod simple bill
+- `مدفوعات المصروفات` / `New Expense Payment` → Qoyod simple bill payment
+
+Custom-operation events such as `إجراء جديد`, `عملية جديدة`, and `خزانة جديدة` are captured in the middleware as skipped `custom_record` rows so they can be inspected without creating unsupported accounting entries.

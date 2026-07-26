@@ -42,6 +42,22 @@ class FakeQoyodClient implements QoyodClient
         return $this->create('payment', $payment['reference'], $payload, Money::normalize($payment['amount'] ?? '0'));
     }
 
+    public function createSimpleBill(array $payload): array
+    {
+        $bill = $payload['simple_bill'] ?? [];
+        $line = $bill['line_items'][0] ?? [];
+        $amount = Money::normalize($line['unit_price'] ?? '0');
+
+        return $this->create('expense', $bill['reference'], $payload, $amount);
+    }
+
+    public function createSimpleBillPayment(array $payload): array
+    {
+        $payment = $payload['simple_bill_payment'] ?? [];
+
+        return $this->create('expense_payment', $payment['reference'], $payload, Money::normalize($payment['amount'] ?? '0'));
+    }
+
     public function readInvoice(string $qoyodId): ?array
     {
         $record = FakeQoyodRecord::query()->whereKey($qoyodId)->where('record_type', 'invoice')->first();

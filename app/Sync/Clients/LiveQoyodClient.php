@@ -122,6 +122,28 @@ class LiveQoyodClient implements QoyodClient
         return $this->normalizeDocumentResponse($response->json(), $response->status(), 'invoice_payment');
     }
 
+    public function createSimpleBill(array $payload): array
+    {
+        $response = $this->http()->post('simple_bills', $payload);
+
+        if ($response->failed()) {
+            throw new RuntimeException($this->failureMessage('Qoyod simple bill creation', $response));
+        }
+
+        return $this->normalizeDocumentResponse($response->json(), $response->status(), 'simple_bill');
+    }
+
+    public function createSimpleBillPayment(array $payload): array
+    {
+        $response = $this->http()->post('simple_bill_payments', $payload);
+
+        if ($response->failed()) {
+            throw new RuntimeException($this->failureMessage('Qoyod simple bill payment creation', $response));
+        }
+
+        return $this->normalizeDocumentResponse($response->json(), $response->status(), 'simple_bill_payment');
+    }
+
     public function readInvoice(string $qoyodId): ?array
     {
         throw new RuntimeException('Live invoice read is not implemented yet.');
