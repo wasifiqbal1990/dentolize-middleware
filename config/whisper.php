@@ -2,6 +2,7 @@
 
 return [
     'adapter_mode' => env('WHISPER_ADAPTER_MODE', 'fake'),
+    'webhook_processing' => env('WHISPER_WEBHOOK_PROCESSING', 'sync'),
     'webhook_verify_token' => env('DENTOLIZE_WEBHOOK_VERIFY_TOKEN', 'local-secret'),
     'dentolize_graphql_url' => env('DENTOLIZE_GRAPHQL_URL', 'https://api.dentolize.com/'),
     'dentolize_session_cookie' => env('DENTOLIZE_SESSION_COOKIE', ''),

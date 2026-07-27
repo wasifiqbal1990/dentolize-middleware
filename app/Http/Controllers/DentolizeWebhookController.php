@@ -37,7 +37,11 @@ class DentolizeWebhookController extends Controller
         );
 
         if ($inbox->wasRecentlyCreated) {
-            ProcessInboxEvent::dispatch($inbox->id);
+            if (config('whisper.webhook_processing') === 'queue') {
+                ProcessInboxEvent::dispatch($inbox->id);
+            } else {
+                ProcessInboxEvent::dispatchSync($inbox->id);
+            }
         }
 
         return response()->json([

@@ -95,6 +95,33 @@ class WebhookAndHandlersTest extends TestCase
         $this->assertDatabaseHas('sync_maps', ['entity_type' => 'patient', 'dentolize_id' => 'patient-1', 'status' => 'transferred']);
     }
 
+    public function test_webhook_processes_inline_by_default_even_when_queue_connection_is_database(): void
+    {
+        config([
+            'queue.default' => 'database',
+            'whisper.webhook_processing' => 'sync',
+            'whisper.webhook_verify_token' => 'secret-token',
+        ]);
+
+        $response = $this->postJson('/webhooks/dentolize', [
+            'verifyToken' => 'secret-token',
+            'event_id' => 'evt-inline-database-queue',
+            'event_type' => 'مريض جديد',
+            'data' => $this->patientPayload(),
+        ]);
+
+        $response->assertOk()->assertJson(['status' => 'received']);
+        $this->assertDatabaseHas('inboxes', [
+            'dentolize_event_id' => 'evt-inline-database-queue',
+            'processing_status' => 'done',
+        ]);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'patient',
+            'dentolize_id' => 'patient-1',
+            'status' => 'transferred',
+        ]);
+    }
+
     public function test_webhook_dedupes_replayed_event_id(): void
     {
         config(['whisper.webhook_verify_token' => 'secret-token']);
@@ -300,6 +327,7 @@ class WebhookAndHandlersTest extends TestCase
         config([
             'whisper.webhook_verify_token' => 'secret-token',
             'whisper.adapter_mode' => 'live',
+            'whisper.webhook_processing' => 'sync',
             'whisper.qoyod_api_key' => 'configured-key',
             'whisper.qoyod_generic_product_id' => 'product-123',
             'whisper.default_inventory_id' => 'inventory-123',
@@ -332,6 +360,7 @@ class WebhookAndHandlersTest extends TestCase
         $response
             ->assertOk()
             ->assertJsonPath('app.adapter_mode', 'live')
+            ->assertJsonPath('app.webhook_processing', 'sync')
             ->assertJsonPath('qoyod.api_key_configured', true)
             ->assertJsonPath('qoyod.generic_product_id', 'product-123')
             ->assertJsonPath('inboxes.by_status.failed', 1)
@@ -340,6 +369,45 @@ class WebhookAndHandlersTest extends TestCase
             ->assertJsonPath('sync_maps.latest.0.dentolize_id', 'patient-status-1');
 
         $this->assertStringNotContainsString('configured-key', $response->getContent());
+    }
+
+    public function test_webhook_reprocess_requires_valid_token(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $this->postJson('/webhooks/dentolize/reprocess?verify_token=wrong')->assertUnauthorized();
+    }
+
+    public function test_webhook_reprocess_runs_received_inboxes_inline(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        Inbox::query()->create([
+            'dentolize_event_id' => 'evt-reprocess-1',
+            'event_type' => 'مريض جديد',
+            'raw_payload' => ['data' => $this->patientPayload()],
+            'headers' => [],
+            'processing_status' => 'received',
+            'received_at' => now(),
+        ]);
+
+        $response = $this->postJson('/webhooks/dentolize/reprocess?verify_token=secret-token&statuses=received');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('status', 'reprocessed')
+            ->assertJsonPath('processed_count', 1)
+            ->assertJsonPath('processed_inbox_ids.0', 1);
+
+        $this->assertDatabaseHas('inboxes', [
+            'dentolize_event_id' => 'evt-reprocess-1',
+            'processing_status' => 'done',
+        ]);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'patient',
+            'dentolize_id' => 'patient-1',
+            'status' => 'transferred',
+        ]);
     }
 
     private function patientPayload(): array

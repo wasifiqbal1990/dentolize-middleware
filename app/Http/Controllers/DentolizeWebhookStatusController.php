@@ -21,6 +21,7 @@ class DentolizeWebhookStatusController extends Controller
             'app' => [
                 'environment' => config('app.env'),
                 'adapter_mode' => config('whisper.adapter_mode'),
+                'webhook_processing' => config('whisper.webhook_processing'),
                 'queue_connection' => config('queue.default'),
             ],
             'qoyod' => [
