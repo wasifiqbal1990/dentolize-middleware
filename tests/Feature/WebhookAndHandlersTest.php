@@ -288,6 +288,60 @@ class WebhookAndHandlersTest extends TestCase
         ]);
     }
 
+    public function test_webhook_status_requires_valid_token(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $this->getJson('/webhooks/dentolize/status?verify_token=wrong')->assertUnauthorized();
+    }
+
+    public function test_webhook_status_reports_redacted_runtime_and_latest_processing_state(): void
+    {
+        config([
+            'whisper.webhook_verify_token' => 'secret-token',
+            'whisper.adapter_mode' => 'live',
+            'whisper.qoyod_api_key' => 'configured-key',
+            'whisper.qoyod_generic_product_id' => 'product-123',
+            'whisper.default_inventory_id' => 'inventory-123',
+            'whisper.default_account_id' => 'cash-101',
+            'whisper.default_vendor_id' => 'vendor-123',
+        ]);
+
+        Inbox::query()->create([
+            'dentolize_event_id' => 'evt-status-1',
+            'event_type' => 'New Patient',
+            'raw_payload' => ['data' => ['id' => 'patient-status-1']],
+            'headers' => ['last_error' => 'Qoyod rejected the payload'],
+            'processing_status' => 'failed',
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        SyncMap::query()->create([
+            'entity_type' => 'patient',
+            'dentolize_id' => 'patient-status-1',
+            'qoyod_reference' => 'DENTO-PAT-patient-status-1',
+            'status' => 'failed',
+            'last_error' => 'Qoyod rejected the payload',
+            'first_seen_at' => now(),
+            'last_attempt_at' => now(),
+        ]);
+
+        $response = $this->getJson('/webhooks/dentolize/status?verify_token=secret-token');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('app.adapter_mode', 'live')
+            ->assertJsonPath('qoyod.api_key_configured', true)
+            ->assertJsonPath('qoyod.generic_product_id', 'product-123')
+            ->assertJsonPath('inboxes.by_status.failed', 1)
+            ->assertJsonPath('sync_maps.by_status.failed', 1)
+            ->assertJsonPath('inboxes.latest.0.dentolize_event_id', 'evt-status-1')
+            ->assertJsonPath('sync_maps.latest.0.dentolize_id', 'patient-status-1');
+
+        $this->assertStringNotContainsString('configured-key', $response->getContent());
+    }
+
     private function patientPayload(): array
     {
         return [
