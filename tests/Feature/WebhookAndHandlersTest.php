@@ -65,6 +65,34 @@ class WebhookAndHandlersTest extends TestCase
         $this->assertArrayNotHasKey('verifyToken', $inbox->raw_payload);
     }
 
+    public function test_webhook_accepts_form_encoded_dentolize_payload(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $response = $this->post('/webhooks/dentolize', [
+            'verifyToken' => 'secret-token',
+            'eventId' => 'evt-patient-form-token',
+            'eventType' => 'مريض جديد',
+            'data' => $this->patientPayload(),
+        ]);
+
+        $response->assertOk()->assertJson(['status' => 'received']);
+        $this->assertDatabaseHas('inboxes', [
+            'dentolize_event_id' => 'evt-patient-form-token',
+            'event_type' => 'مريض جديد',
+            'processing_status' => 'done',
+        ]);
+
+        $inbox = Inbox::query()->where('dentolize_event_id', 'evt-patient-form-token')->firstOrFail();
+
+        $this->assertArrayNotHasKey('verifyToken', $inbox->raw_payload);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'patient',
+            'dentolize_id' => 'patient-1',
+            'status' => 'transferred',
+        ]);
+    }
+
     public function test_webhook_accepts_verify_token_from_query_string(): void
     {
         config(['whisper.webhook_verify_token' => 'secret-token']);
