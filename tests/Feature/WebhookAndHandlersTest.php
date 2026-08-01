@@ -309,13 +309,16 @@ class WebhookAndHandlersTest extends TestCase
 
     public function test_patient_handler_maps_real_dentolize_patient_without_invalid_tax_number(): void
     {
-        app(PatientHandler::class)->handle([
+        $syncMap = app(PatientHandler::class)->handle([
             'id' => 'real-dentolize-patient-1',
             'name' => 'Wasif Patient DELETE',
+            'file_no' => 'P-1001',
             'nationalId' => '1234567890',
             'phone' => '0111234567',
             'mobile' => '0500000000',
         ]);
+
+        $this->assertSame('P-1001', $syncMap->dentolize_number);
 
         $requestBody = AuditLog::query()
             ->where('action', 'create_customer')
@@ -358,6 +361,32 @@ class WebhookAndHandlersTest extends TestCase
             'entity_type' => 'invoice',
             'dentolize_id' => 'real-invoice-1',
             'qoyod_reference' => 'DENTO-INV-real-invoice-1',
+            'status' => 'transferred',
+        ]);
+    }
+
+    public function test_invoice_handler_can_link_real_dentolize_invoice_by_file_no(): void
+    {
+        app(PatientHandler::class)->handle([
+            'id' => 'real-patient-by-file',
+            'name' => 'Wasif Patient DELETE',
+            'file_no' => 'P-2002',
+            'mobile' => '0500000000',
+        ]);
+
+        $syncMap = app(InvoiceHandler::class)->handle([
+            'id' => 'real-invoice-by-file',
+            'file_no' => 'P-2002',
+            'subtotal' => '100.00',
+            'discount' => '0',
+            'taxPercent' => '15',
+            'total' => '115.00',
+        ]);
+
+        $this->assertSame('transferred', $syncMap->status);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'invoice',
+            'dentolize_id' => 'real-invoice-by-file',
             'status' => 'transferred',
         ]);
     }

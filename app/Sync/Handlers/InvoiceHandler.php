@@ -124,13 +124,27 @@ class InvoiceHandler
 
         $patientDentolizeId = (string) ($payload['patient_id'] ?? $payload['patientId'] ?? '');
 
-        if ($patientDentolizeId === '') {
+        if ($patientDentolizeId !== '') {
+            $patientMap = SyncMap::query()
+                ->where('entity_type', 'patient')
+                ->where('dentolize_id', $patientDentolizeId)
+                ->whereIn('status', ['transferred', 'fixed'])
+                ->first();
+
+            if ($patientMap !== null) {
+                return $patientMap;
+            }
+        }
+
+        $patientNumber = trim((string) ($payload['file_no'] ?? $payload['reference_no'] ?? ''));
+
+        if ($patientNumber === '') {
             return null;
         }
 
         return SyncMap::query()
             ->where('entity_type', 'patient')
-            ->where('dentolize_id', $patientDentolizeId)
+            ->where('dentolize_number', $patientNumber)
             ->whereIn('status', ['transferred', 'fixed'])
             ->first();
     }

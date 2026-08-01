@@ -21,6 +21,7 @@ class PatientHandler
         $syncMap = SyncMap::query()->firstOrCreate(
             ['entity_type' => 'patient', 'dentolize_id' => $dentolizeId],
             [
+                'dentolize_number' => $this->dentolizeNumber($payload),
                 'qoyod_reference' => $reference,
                 'status' => 'pending',
                 'payload_hash' => $hash,
@@ -33,7 +34,7 @@ class PatientHandler
         }
 
         if ($existing = $this->qoyod->findByReference('customer', $reference)) {
-            return $this->markTransferred($syncMap, $existing, $hash);
+            return $this->markTransferred($syncMap, $existing, $hash, $payload);
         }
 
         $body = [
@@ -50,7 +51,7 @@ class PatientHandler
 
         $response = $this->qoyod->createCustomer($body);
 
-        $syncMap = $this->markTransferred($syncMap, $response, $hash);
+        $syncMap = $this->markTransferred($syncMap, $response, $hash, $payload);
 
         AuditLog::query()->create([
             'correlation_id' => $dentolizeId,
@@ -67,7 +68,7 @@ class PatientHandler
         return $syncMap;
     }
 
-    private function markTransferred(SyncMap $syncMap, array $response, string $hash): SyncMap
+    private function markTransferred(SyncMap $syncMap, array $response, string $hash, array $payload): SyncMap
     {
         $syncMap->update([
             'qoyod_id' => (string) $response['id'],
@@ -76,6 +77,7 @@ class PatientHandler
             'last_error' => null,
             'attempts' => $syncMap->attempts + 1,
             'payload_hash' => $hash,
+            'dentolize_number' => $this->dentolizeNumber($payload),
             'last_attempt_at' => now(),
             'synced_at' => now(),
         ]);
@@ -94,6 +96,13 @@ class PatientHandler
         $name = trim(($payload['firstName'] ?? '').' '.($payload['lastName'] ?? ''));
 
         return $name !== '' ? $name : 'Unknown Patient';
+    }
+
+    private function dentolizeNumber(array $payload): ?string
+    {
+        $number = trim((string) ($payload['file_no'] ?? $payload['reference_no'] ?? ''));
+
+        return $number === '' ? null : $number;
     }
 
     private function taxNumber(array $payload): string
