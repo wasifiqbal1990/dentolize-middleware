@@ -70,7 +70,9 @@ class ProcessInboxEvent implements ShouldQueue
 
     private function normalizeEventType(string $eventType): string
     {
-        return match ($eventType) {
+        $key = strtolower(trim($eventType));
+
+        return match ($key) {
             'مريض جديد', 'new_patient', 'patient.created' => 'New Patient',
             'فاتورة جديدة', 'new_invoice', 'invoice.created' => 'New Invoice',
             'دفعة جديدة', 'new_payment', 'payment.created' => 'New Payment',

@@ -138,6 +138,29 @@ class WebhookAndHandlersTest extends TestCase
         $this->assertDatabaseHas('sync_maps', ['entity_type' => 'patient', 'dentolize_id' => 'patient-1', 'status' => 'transferred']);
     }
 
+    public function test_webhook_processes_dentolize_uppercase_event_names(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $response = $this->postJson('/webhooks/dentolize?verify_token=secret-token', [
+            'event_id' => 'evt-patient-uppercase',
+            'event_type' => 'NEW_PATIENT',
+            'data' => $this->patientPayload(),
+        ]);
+
+        $response->assertOk()->assertJson(['status' => 'received']);
+        $this->assertDatabaseHas('inboxes', [
+            'dentolize_event_id' => 'evt-patient-uppercase',
+            'event_type' => 'NEW_PATIENT',
+            'processing_status' => 'done',
+        ]);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'patient',
+            'dentolize_id' => 'patient-1',
+            'status' => 'transferred',
+        ]);
+    }
+
     public function test_webhook_processes_inline_by_default_even_when_queue_connection_is_database(): void
     {
         config([
