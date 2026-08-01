@@ -39,11 +39,11 @@ class PatientHandler
         $body = [
             'reference' => $reference,
             'contact' => [
-                'name' => trim(($payload['firstName'] ?? '').' '.($payload['lastName'] ?? '')) ?: 'Unknown Patient',
+                'name' => $this->patientName($payload),
                 'organization' => '',
                 'email' => $payload['email'] ?? '',
-                'phone_number' => PhoneNormalizer::toSaudiE164($payload['phoneNumber'] ?? null),
-                'tax_number' => $payload['nationalId'] ?? '',
+                'phone_number' => PhoneNormalizer::toSaudiE164($payload['mobile'] ?? $payload['phoneNumber'] ?? $payload['phone'] ?? null),
+                'tax_number' => $this->taxNumber($payload),
                 'status' => 'Active',
             ],
         ];
@@ -81,5 +81,25 @@ class PatientHandler
         ]);
 
         return $syncMap->fresh();
+    }
+
+    private function patientName(array $payload): string
+    {
+        $name = trim((string) ($payload['name'] ?? ''));
+
+        if ($name !== '') {
+            return $name;
+        }
+
+        $name = trim(($payload['firstName'] ?? '').' '.($payload['lastName'] ?? ''));
+
+        return $name !== '' ? $name : 'Unknown Patient';
+    }
+
+    private function taxNumber(array $payload): string
+    {
+        $taxNumber = preg_replace('/\D+/', '', (string) ($payload['taxNumber'] ?? $payload['vatNumber'] ?? '')) ?? '';
+
+        return strlen($taxNumber) === 15 ? $taxNumber : '';
     }
 }

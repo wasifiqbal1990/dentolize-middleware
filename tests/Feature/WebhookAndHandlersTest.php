@@ -307,6 +307,26 @@ class WebhookAndHandlersTest extends TestCase
         $this->assertSame(1, AuditLog::query()->where('action', 'create_customer')->count());
     }
 
+    public function test_patient_handler_maps_real_dentolize_patient_without_invalid_tax_number(): void
+    {
+        app(PatientHandler::class)->handle([
+            'id' => 'real-dentolize-patient-1',
+            'name' => 'Wasif Patient DELETE',
+            'nationalId' => '1234567890',
+            'phone' => '0111234567',
+            'mobile' => '0500000000',
+        ]);
+
+        $requestBody = AuditLog::query()
+            ->where('action', 'create_customer')
+            ->firstOrFail()
+            ->request_body;
+
+        $this->assertSame('Wasif Patient DELETE', $requestBody['contact']['name']);
+        $this->assertSame('+966500000000', $requestBody['contact']['phone_number']);
+        $this->assertSame('', $requestBody['contact']['tax_number']);
+    }
+
     public function test_invoice_handler_creates_customer_dependency_and_invoice(): void
     {
         $syncMap = app(InvoiceHandler::class)->handle($this->invoicePayload());
