@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Inbox;
 use App\Models\SyncMap;
+use App\Models\WebhookAttempt;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -50,6 +51,29 @@ class DentolizeWebhookStatusController extends Controller
                         'last_error' => $this->truncate($inbox->headers['last_error'] ?? null),
                         'received_at' => optional($inbox->received_at)->toIso8601String(),
                         'processed_at' => optional($inbox->processed_at)->toIso8601String(),
+                    ]),
+            ],
+            'webhook_attempts' => [
+                'total' => WebhookAttempt::query()->count(),
+                'by_result' => WebhookAttempt::query()
+                    ->selectRaw('result, count(*) as total')
+                    ->groupBy('result')
+                    ->orderBy('result')
+                    ->pluck('total', 'result'),
+                'latest' => WebhookAttempt::query()
+                    ->latest('id')
+                    ->limit(20)
+                    ->get()
+                    ->map(fn (WebhookAttempt $attempt): array => [
+                        'id' => $attempt->id,
+                        'event_id' => $attempt->event_id,
+                        'event_type' => $attempt->event_type,
+                        'content_type' => $attempt->content_type,
+                        'verify_token_present' => $attempt->verify_token_present,
+                        'verify_token_valid' => $attempt->verify_token_valid,
+                        'result' => $attempt->result,
+                        'payload_keys' => $attempt->payload_keys,
+                        'received_at' => optional($attempt->received_at)->toIso8601String(),
                     ]),
             ],
             'sync_maps' => [

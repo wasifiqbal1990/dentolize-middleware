@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\AuditLog;
 use App\Models\Inbox;
 use App\Models\SyncMap;
+use App\Models\WebhookAttempt;
 use App\Sync\Clients\QoyodClient;
 use App\Sync\Handlers\ExpenseHandler;
 use App\Sync\Handlers\ExpensePaymentHandler;
@@ -45,6 +46,13 @@ class WebhookAndHandlersTest extends TestCase
         ], ['X-Dentolize-Verify-Token' => 'wrong'])->assertUnauthorized();
 
         $this->assertSame(0, Inbox::query()->count());
+        $this->assertDatabaseHas('webhook_attempts', [
+            'event_id' => 'evt-patient-1',
+            'event_type' => 'New Patient',
+            'verify_token_present' => true,
+            'verify_token_valid' => false,
+            'result' => 'rejected_invalid_token',
+        ]);
     }
 
     public function test_webhook_accepts_verify_token_from_body_without_storing_it(): void
@@ -63,6 +71,13 @@ class WebhookAndHandlersTest extends TestCase
         $inbox = Inbox::query()->where('dentolize_event_id', 'evt-patient-body-token')->firstOrFail();
 
         $this->assertArrayNotHasKey('verifyToken', $inbox->raw_payload);
+        $this->assertDatabaseHas('webhook_attempts', [
+            'event_id' => 'evt-patient-body-token',
+            'event_type' => 'New Patient',
+            'verify_token_present' => true,
+            'verify_token_valid' => true,
+            'result' => 'accepted',
+        ]);
     }
 
     public function test_webhook_accepts_form_encoded_dentolize_payload(): void
@@ -397,6 +412,37 @@ class WebhookAndHandlersTest extends TestCase
             ->assertJsonPath('sync_maps.latest.0.dentolize_id', 'patient-status-1');
 
         $this->assertStringNotContainsString('configured-key', $response->getContent());
+    }
+
+    public function test_webhook_status_reports_recent_attempts_without_tokens(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        WebhookAttempt::query()->create([
+            'source' => 'dentolize',
+            'http_method' => 'POST',
+            'path' => 'webhooks/dentolize',
+            'content_type' => 'application/json',
+            'user_agent' => 'Dentolize',
+            'event_id' => 'evt-attempt-status-1',
+            'event_type' => 'New Patient',
+            'verify_token_present' => true,
+            'verify_token_valid' => false,
+            'result' => 'rejected_invalid_token',
+            'payload_keys' => ['verifyToken', 'eventId', 'eventType'],
+            'received_at' => now(),
+        ]);
+
+        $response = $this->getJson('/webhooks/dentolize/status?verify_token=secret-token');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('webhook_attempts.total', 1)
+            ->assertJsonPath('webhook_attempts.by_result.rejected_invalid_token', 1)
+            ->assertJsonPath('webhook_attempts.latest.0.event_id', 'evt-attempt-status-1')
+            ->assertJsonPath('webhook_attempts.latest.0.verify_token_valid', false);
+
+        $this->assertStringNotContainsString('secret-token', $response->getContent());
     }
 
     public function test_webhook_reprocess_requires_valid_token(): void

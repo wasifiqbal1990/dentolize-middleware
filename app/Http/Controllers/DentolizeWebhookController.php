@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Jobs\ProcessInboxEvent;
 use App\Models\Inbox;
+use App\Models\WebhookAttempt;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,14 +15,32 @@ class DentolizeWebhookController extends Controller
         $expected = (string) config('whisper.webhook_verify_token');
         $payload = $this->payload($request);
         $provided = $this->verificationToken($request, $payload);
+        $tokenValid = hash_equals($expected, $provided);
+        $eventId = $payload['event_id'] ?? $payload['eventId'] ?? null;
+        $eventType = $payload['event_type'] ?? $payload['eventType'] ?? $payload['type'] ?? $payload['api'] ?? null;
 
-        if (! hash_equals($expected, $provided)) {
+        $attempt = WebhookAttempt::query()->create([
+            'source' => 'dentolize',
+            'http_method' => $request->method(),
+            'path' => $request->path(),
+            'content_type' => $request->header('Content-Type'),
+            'user_agent' => $request->userAgent(),
+            'event_id' => $eventId,
+            'event_type' => $eventType,
+            'verify_token_present' => $provided !== '',
+            'verify_token_valid' => $tokenValid,
+            'result' => $tokenValid ? 'accepted' : 'rejected_invalid_token',
+            'payload_keys' => array_slice(array_keys($payload), 0, 20),
+            'received_at' => now(),
+        ]);
+
+        if (! $tokenValid) {
             return response()->json(['message' => 'Invalid verify token'], 401);
         }
 
         $payload = $this->withoutVerifyToken($payload);
-        $eventId = $payload['event_id'] ?? $payload['eventId'] ?? hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
-        $eventType = $payload['event_type'] ?? $payload['eventType'] ?? $payload['type'] ?? $payload['api'] ?? 'Unknown';
+        $eventId = $eventId ?? hash('sha256', json_encode($payload, JSON_THROW_ON_ERROR));
+        $eventType = $eventType ?? 'Unknown';
 
         $inbox = Inbox::query()->firstOrCreate(
             ['dentolize_event_id' => $eventId],
@@ -37,6 +56,8 @@ class DentolizeWebhookController extends Controller
                 'received_at' => now(),
             ],
         );
+
+        $attempt->update(['result' => $inbox->wasRecentlyCreated ? 'accepted' : 'duplicate']);
 
         if ($inbox->wasRecentlyCreated) {
             if (config('whisper.webhook_processing') === 'queue') {
