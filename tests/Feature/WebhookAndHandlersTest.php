@@ -161,6 +161,40 @@ class WebhookAndHandlersTest extends TestCase
         ]);
     }
 
+    public function test_webhook_processes_dentolize_uppercase_accounting_event_names(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $this->postJson('/webhooks/dentolize?verify_token=secret-token', [
+            'event_id' => 'evt-invoice-uppercase',
+            'event_type' => 'NEW_INVOICE',
+            'data' => $this->invoicePayload(),
+        ])->assertOk()->assertJson(['status' => 'received']);
+
+        $this->postJson('/webhooks/dentolize?verify_token=secret-token', [
+            'event_id' => 'evt-payment-uppercase',
+            'event_type' => 'NEW_PAYMENT',
+            'data' => $this->paymentPayload(),
+        ])->assertOk()->assertJson(['status' => 'received']);
+
+        $this->postJson('/webhooks/dentolize?verify_token=secret-token', [
+            'event_id' => 'evt-expense-uppercase',
+            'event_type' => 'NEW_EXPENSE',
+            'data' => $this->expensePayload(),
+        ])->assertOk()->assertJson(['status' => 'received']);
+
+        $this->postJson('/webhooks/dentolize?verify_token=secret-token', [
+            'event_id' => 'evt-expense-payment-uppercase',
+            'event_type' => 'NEW_EXPENSE_PAYMENT',
+            'data' => $this->expensePaymentPayload(),
+        ])->assertOk()->assertJson(['status' => 'received']);
+
+        $this->assertDatabaseHas('sync_maps', ['entity_type' => 'invoice', 'dentolize_id' => 'invoice-1', 'status' => 'transferred']);
+        $this->assertDatabaseHas('sync_maps', ['entity_type' => 'payment', 'dentolize_id' => 'payment-1', 'status' => 'transferred']);
+        $this->assertDatabaseHas('sync_maps', ['entity_type' => 'expense', 'dentolize_id' => 'expense-1', 'status' => 'transferred']);
+        $this->assertDatabaseHas('sync_maps', ['entity_type' => 'expense_payment', 'dentolize_id' => 'expense-payment-1', 'status' => 'transferred']);
+    }
+
     public function test_webhook_processes_inline_by_default_even_when_queue_connection_is_database(): void
     {
         config([
