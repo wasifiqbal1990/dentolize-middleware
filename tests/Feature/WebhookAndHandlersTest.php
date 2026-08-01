@@ -336,6 +336,46 @@ class WebhookAndHandlersTest extends TestCase
         $this->assertDatabaseHas('sync_maps', ['entity_type' => 'invoice', 'dentolize_id' => 'invoice-1', 'qoyod_reference' => 'DENTO-INV-21038']);
     }
 
+    public function test_invoice_handler_uses_existing_patient_for_real_dentolize_invoice_payload(): void
+    {
+        app(PatientHandler::class)->handle([
+            'id' => 'real-patient-1',
+            'name' => 'Wasif Patient DELETE',
+            'mobile' => '0500000000',
+        ]);
+
+        $syncMap = app(InvoiceHandler::class)->handle([
+            'id' => 'real-invoice-1',
+            'patient_id' => 'real-patient-1',
+            'subtotal' => '100.00',
+            'discount' => '0',
+            'taxPercent' => '15',
+            'total' => '115.00',
+        ]);
+
+        $this->assertSame('transferred', $syncMap->status);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'invoice',
+            'dentolize_id' => 'real-invoice-1',
+            'qoyod_reference' => 'DENTO-INV-real-invoice-1',
+            'status' => 'transferred',
+        ]);
+    }
+
+    public function test_invoice_handler_waits_when_real_dentolize_patient_dependency_is_missing(): void
+    {
+        $syncMap = app(InvoiceHandler::class)->handle([
+            'id' => 'real-invoice-missing-patient',
+            'patient_id' => 'missing-patient',
+            'subtotal' => '100.00',
+            'total' => '115.00',
+        ]);
+
+        $this->assertSame('pending', $syncMap->status);
+        $this->assertSame('Whisper', $syncMap->rejected_by);
+        $this->assertStringContainsString('patient dependency missing', $syncMap->last_error);
+    }
+
     public function test_payment_waits_when_invoice_dependency_is_missing(): void
     {
         $syncMap = app(PaymentHandler::class)->handle($this->paymentPayload());
@@ -353,6 +393,36 @@ class WebhookAndHandlersTest extends TestCase
 
         $this->assertSame('transferred', $syncMap->status);
         $this->assertDatabaseHas('sync_maps', ['entity_type' => 'payment', 'dentolize_id' => 'payment-1', 'qoyod_reference' => 'DENTO-PAY-payment-1']);
+    }
+
+    public function test_payment_handler_uses_real_dentolize_invoice_id_payload(): void
+    {
+        app(PatientHandler::class)->handle([
+            'id' => 'real-patient-1',
+            'name' => 'Wasif Patient DELETE',
+            'mobile' => '0500000000',
+        ]);
+        app(InvoiceHandler::class)->handle([
+            'id' => 'real-invoice-1',
+            'patient_id' => 'real-patient-1',
+            'subtotal' => '100.00',
+            'total' => '115.00',
+        ]);
+
+        $syncMap = app(PaymentHandler::class)->handle([
+            'id' => 'real-payment-1',
+            'invoice_id' => 'real-invoice-1',
+            'patient_id' => 'real-patient-1',
+            'amount' => '115.00',
+        ]);
+
+        $this->assertSame('transferred', $syncMap->status);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'payment',
+            'dentolize_id' => 'real-payment-1',
+            'qoyod_reference' => 'DENTO-PAY-real-payment-1',
+            'status' => 'transferred',
+        ]);
     }
 
     public function test_expense_handler_creates_simple_bill(): void

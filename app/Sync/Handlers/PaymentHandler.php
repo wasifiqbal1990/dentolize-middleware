@@ -33,7 +33,7 @@ class PaymentHandler
             return $syncMap;
         }
 
-        $invoiceDentolizeId = (string) ($payload['invoice']['id'] ?? '');
+        $invoiceDentolizeId = (string) ($payload['invoice']['id'] ?? $payload['invoice_id'] ?? $payload['invoiceId'] ?? '');
         $invoiceMap = SyncMap::query()
             ->where('entity_type', 'invoice')
             ->where('dentolize_id', $invoiceDentolizeId)

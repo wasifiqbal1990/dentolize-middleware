@@ -39,7 +39,19 @@ class InvoiceHandler
             return $syncMap;
         }
 
-        $patientMap = $this->patientHandler->handle($payload['patient']);
+        $patientMap = $this->patientMap($payload);
+
+        if ($patientMap === null) {
+            $syncMap->update([
+                'status' => 'pending',
+                'rejected_by' => 'Whisper',
+                'last_error' => 'patient dependency missing for invoice '.$dentolizeId,
+                'attempts' => $syncMap->attempts + 1,
+                'last_attempt_at' => now(),
+            ]);
+
+            return $syncMap->fresh();
+        }
 
         if ($existing = $this->qoyod->findByReference('invoice', $reference)) {
             return $this->markTransferred($syncMap, $existing, $hash);
@@ -102,5 +114,24 @@ class InvoiceHandler
         ]);
 
         return $syncMap->fresh();
+    }
+
+    private function patientMap(array $payload): ?SyncMap
+    {
+        if (isset($payload['patient']) && is_array($payload['patient'])) {
+            return $this->patientHandler->handle($payload['patient']);
+        }
+
+        $patientDentolizeId = (string) ($payload['patient_id'] ?? $payload['patientId'] ?? '');
+
+        if ($patientDentolizeId === '') {
+            return null;
+        }
+
+        return SyncMap::query()
+            ->where('entity_type', 'patient')
+            ->where('dentolize_id', $patientDentolizeId)
+            ->whereIn('status', ['transferred', 'fixed'])
+            ->first();
     }
 }
