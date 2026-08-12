@@ -650,6 +650,55 @@ class WebhookAndHandlersTest extends TestCase
         $this->assertStringNotContainsString('secret-token', $response->getContent());
     }
 
+    public function test_webhook_status_can_lookup_one_invoice_without_patient_details(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        Inbox::query()->create([
+            'dentolize_event_id' => 'evt-lookup-invoice',
+            'event_type' => 'NEW_INVOICE',
+            'raw_payload' => [
+                'type' => 'NEW_INVOICE',
+                'id' => 'invoice-lookup-1',
+                'name' => 'Do Not Expose Patient Name',
+                'phone' => '0500000000',
+                'total' => '115.00',
+                'subtotal' => '100.00',
+                'tax' => '15.00',
+                'discount' => '0',
+                'taxPercent' => '15',
+                'file_no' => 'P-3003',
+                'reference_no' => 'REF-3003',
+            ],
+            'headers' => [],
+            'processing_status' => 'done',
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        SyncMap::query()->create([
+            'entity_type' => 'invoice',
+            'dentolize_id' => 'invoice-lookup-1',
+            'dentolize_number' => 'invoice-lookup-1',
+            'qoyod_reference' => 'DENTO-INV-invoice-lookup-1',
+            'amount' => '115.00',
+            'status' => 'pending',
+            'last_error' => 'patient dependency missing for invoice invoice-lookup-1',
+            'first_seen_at' => now(),
+            'last_attempt_at' => now(),
+        ]);
+
+        $response = $this->getJson('/webhooks/dentolize/status?verify_token=secret-token&dentolize_id=invoice-lookup-1');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('lookup.dentolize_id', 'invoice-lookup-1')
+            ->assertJsonPath('lookup.sync_maps.0.amount', '115.00')
+            ->assertJsonPath('lookup.inboxes.0.payload.total', '115.00')
+            ->assertJsonMissing(['name' => 'Do Not Expose Patient Name'])
+            ->assertJsonMissing(['phone' => '0500000000']);
+    }
+
     public function test_webhook_reprocess_requires_valid_token(): void
     {
         config(['whisper.webhook_verify_token' => 'secret-token']);
