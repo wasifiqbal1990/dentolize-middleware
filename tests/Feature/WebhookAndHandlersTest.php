@@ -418,6 +418,60 @@ class WebhookAndHandlersTest extends TestCase
         $this->assertSame('100.00', $requestBody['invoice']['line_items'][0]['unit_price']);
     }
 
+    public function test_invoice_handler_marks_sync_map_failed_when_qoyod_rejects_invoice(): void
+    {
+        $this->app->bind(QoyodClient::class, fn () => new class implements QoyodClient
+        {
+            public function findByReference(string $recordType, string $reference): ?array
+            {
+                return null;
+            }
+
+            public function createCustomer(array $payload): array
+            {
+                return ['id' => 'customer-1', 'payload' => $payload, 'status_code' => 201];
+            }
+
+            public function createInvoice(array $payload): array
+            {
+                throw new RuntimeException('Qoyod invoice creation failed with HTTP 422');
+            }
+
+            public function createInvoicePayment(array $payload): array
+            {
+                return ['id' => 'payment-1', 'payload' => $payload, 'status_code' => 201];
+            }
+
+            public function createSimpleBill(array $payload): array
+            {
+                return ['id' => 'expense-1', 'payload' => $payload, 'status_code' => 201];
+            }
+
+            public function createSimpleBillPayment(array $payload): array
+            {
+                return ['id' => 'expense-payment-1', 'payload' => $payload, 'status_code' => 201];
+            }
+
+            public function readInvoice(string $qoyodId): ?array
+            {
+                return null;
+            }
+        });
+
+        $this->expectException(RuntimeException::class);
+
+        try {
+            app(InvoiceHandler::class)->handle($this->invoicePayload());
+        } finally {
+            $this->assertDatabaseHas('sync_maps', [
+                'entity_type' => 'invoice',
+                'dentolize_id' => 'invoice-1',
+                'status' => 'failed',
+                'rejected_by' => 'Qoyod',
+            ]);
+        }
+    }
+
     public function test_invoice_handler_waits_when_real_dentolize_patient_dependency_is_missing(): void
     {
         $syncMap = app(InvoiceHandler::class)->handle([

@@ -8,6 +8,7 @@ use App\Support\Money;
 use App\Support\ReferenceBuilder;
 use App\Sync\Clients\QoyodClient;
 use Carbon\CarbonImmutable;
+use Throwable;
 
 class InvoiceHandler
 {
@@ -79,7 +80,21 @@ class InvoiceHandler
             ],
         ];
 
-        $response = $this->qoyod->createInvoice($body);
+        try {
+            $response = $this->qoyod->createInvoice($body);
+        } catch (Throwable $exception) {
+            $syncMap->update([
+                'status' => 'failed',
+                'rejected_by' => 'Qoyod',
+                'last_error' => $exception->getMessage(),
+                'attempts' => $syncMap->attempts + 1,
+                'payload_hash' => $hash,
+                'last_attempt_at' => now(),
+            ]);
+
+            throw $exception;
+        }
+
         $syncMap = $this->markTransferred($syncMap, $response, $hash);
 
         AuditLog::query()->create([
