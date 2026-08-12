@@ -65,7 +65,7 @@ class InvoiceHandler
                 'description' => 'Dentolize invoice #'.$invoiceNumber,
                 'issue_date' => $issueDate,
                 'due_date' => $issueDate,
-                'status' => 'Draft',
+                'status' => (string) config('whisper.qoyod_invoice_status'),
                 'inventory_id' => (string) config('whisper.default_inventory_id'),
                 'line_items' => [[
                     'product_id' => (string) config('whisper.qoyod_generic_product_id'),
@@ -76,9 +76,6 @@ class InvoiceHandler
                     'discount_type' => 'amount',
                     'tax_percent' => (string) ($payload['taxPercent'] ?? config('whisper.vat_rate')),
                 ]],
-                'custom_fields' => [
-                    'customfield1' => 'dentolize_invoice_id:'.$dentolizeId,
-                ],
             ],
         ];
 

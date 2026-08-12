@@ -391,6 +391,33 @@ class WebhookAndHandlersTest extends TestCase
         ]);
     }
 
+    public function test_invoice_handler_does_not_send_invalid_qoyod_custom_field(): void
+    {
+        app(PatientHandler::class)->handle([
+            'id' => 'real-patient-no-custom-field',
+            'name' => 'Wasif Patient DELETE',
+            'mobile' => '0500000000',
+        ]);
+
+        app(InvoiceHandler::class)->handle([
+            'id' => 'real-invoice-no-custom-field',
+            'patient_id' => 'real-patient-no-custom-field',
+            'subtotal' => '100.00',
+            'discount' => '0',
+            'taxPercent' => '15',
+            'total' => '115.00',
+        ]);
+
+        $requestBody = AuditLog::query()
+            ->where('action', 'create_invoice')
+            ->latest('id')
+            ->firstOrFail()
+            ->request_body;
+
+        $this->assertArrayNotHasKey('custom_fields', $requestBody['invoice']);
+        $this->assertSame('100.00', $requestBody['invoice']['line_items'][0]['unit_price']);
+    }
+
     public function test_invoice_handler_waits_when_real_dentolize_patient_dependency_is_missing(): void
     {
         $syncMap = app(InvoiceHandler::class)->handle([
@@ -568,6 +595,7 @@ class WebhookAndHandlersTest extends TestCase
             'entity_type' => 'patient',
             'dentolize_id' => 'patient-status-1',
             'qoyod_reference' => 'DENTO-PAT-patient-status-1',
+            'amount' => '115.00',
             'status' => 'failed',
             'last_error' => 'Qoyod rejected the payload',
             'first_seen_at' => now(),
@@ -585,7 +613,8 @@ class WebhookAndHandlersTest extends TestCase
             ->assertJsonPath('inboxes.by_status.failed', 1)
             ->assertJsonPath('sync_maps.by_status.failed', 1)
             ->assertJsonPath('inboxes.latest.0.dentolize_event_id', 'evt-status-1')
-            ->assertJsonPath('sync_maps.latest.0.dentolize_id', 'patient-status-1');
+            ->assertJsonPath('sync_maps.latest.0.dentolize_id', 'patient-status-1')
+            ->assertJsonPath('sync_maps.latest.0.amount', '115.00');
 
         $this->assertStringNotContainsString('configured-key', $response->getContent());
     }

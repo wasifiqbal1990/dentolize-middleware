@@ -28,6 +28,7 @@ class DentolizeWebhookStatusController extends Controller
             'qoyod' => [
                 'api_key_configured' => (string) config('whisper.qoyod_api_key') !== '',
                 'generic_product_id' => config('whisper.qoyod_generic_product_id'),
+                'invoice_status' => config('whisper.qoyod_invoice_status'),
                 'default_inventory_id' => config('whisper.default_inventory_id'),
                 'default_account_id' => config('whisper.default_account_id'),
                 'default_vendor_id' => config('whisper.default_vendor_id'),
@@ -105,6 +106,7 @@ class DentolizeWebhookStatusController extends Controller
                         'dentolize_number' => $map->dentolize_number,
                         'qoyod_id' => $map->qoyod_id,
                         'qoyod_reference' => $map->qoyod_reference,
+                        'amount' => $map->amount,
                         'status' => $map->status,
                         'last_error' => $this->truncate($map->last_error),
                         'attempts' => $map->attempts,

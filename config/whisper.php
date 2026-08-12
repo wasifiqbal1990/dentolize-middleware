@@ -9,6 +9,7 @@ return [
     'qoyod_base_url' => env('QOYOD_BASE_URL', 'https://api.qoyod.com/2.0/'),
     'qoyod_api_key' => env('QOYOD_API_KEY', ''),
     'qoyod_generic_product_id' => env('QOYOD_GENERIC_PRODUCT_ID', '1'),
+    'qoyod_invoice_status' => env('QOYOD_INVOICE_STATUS', 'Draft'),
     'default_inventory_id' => env('QOYOD_DEFAULT_INVENTORY_ID', '1'),
     'default_account_id' => env('QOYOD_DEFAULT_ACCOUNT_ID', '1'),
     'default_vendor_id' => env('QOYOD_DEFAULT_VENDOR_ID', '1'),
