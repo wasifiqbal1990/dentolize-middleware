@@ -753,6 +753,94 @@ class WebhookAndHandlersTest extends TestCase
             ->assertJsonMissing(['phone' => '0500000000']);
     }
 
+    public function test_webhook_status_can_lookup_related_records_by_patient_id(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        Inbox::query()->create([
+            'dentolize_event_id' => 'evt-lookup-patient',
+            'event_type' => 'NEW_PATIENT',
+            'raw_payload' => [
+                'type' => 'NEW_PATIENT',
+                'id' => 'patient-lookup-1',
+                'name' => 'Do Not Expose Patient Name',
+                'phone' => '0500000000',
+                'file_no' => 'P-3003',
+            ],
+            'headers' => [],
+            'processing_status' => 'done',
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        Inbox::query()->create([
+            'dentolize_event_id' => 'evt-lookup-patient-invoice',
+            'event_type' => 'NEW_INVOICE',
+            'raw_payload' => [
+                'type' => 'NEW_INVOICE',
+                'id' => 'invoice-for-patient-lookup-1',
+                'patient_id' => 'patient-lookup-1',
+                'total' => '250.00',
+                'subtotal' => '250.00',
+                'discount' => '0',
+            ],
+            'headers' => [],
+            'processing_status' => 'done',
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        Inbox::query()->create([
+            'dentolize_event_id' => 'evt-lookup-patient-payment',
+            'event_type' => 'NEW_PAYMENT',
+            'raw_payload' => [
+                'type' => 'NEW_PAYMENT',
+                'id' => 'payment-for-patient-lookup-1',
+                'patient_id' => 'patient-lookup-1',
+                'invoice_id' => 'invoice-for-patient-lookup-1',
+                'amount' => '100.00',
+            ],
+            'headers' => [],
+            'processing_status' => 'done',
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        SyncMap::query()->create([
+            'entity_type' => 'patient',
+            'dentolize_id' => 'patient-lookup-1',
+            'dentolize_number' => 'P-3003',
+            'qoyod_id' => '105',
+            'qoyod_reference' => 'DENTO-CUST-patient-lookup-1',
+            'status' => 'transferred',
+            'first_seen_at' => now(),
+        ]);
+
+        SyncMap::query()->create([
+            'entity_type' => 'payment',
+            'dentolize_id' => 'payment-for-patient-lookup-1',
+            'qoyod_reference' => 'DENTO-PAY-payment-for-patient-lookup-1',
+            'amount' => '100.00',
+            'status' => 'pending',
+            'last_error' => 'invoice dependency missing for payment payment-for-patient-lookup-1',
+            'first_seen_at' => now(),
+        ]);
+
+        $response = $this->getJson('/webhooks/dentolize/status?verify_token=secret-token&patient_id=patient-lookup-1');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('lookup.patient_id', 'patient-lookup-1')
+            ->assertJsonPath('lookup.inboxes.0.event_type', 'NEW_PAYMENT')
+            ->assertJsonPath('lookup.inboxes.0.payload.amount', '100.00')
+            ->assertJsonPath('lookup.inboxes.1.event_type', 'NEW_INVOICE')
+            ->assertJsonPath('lookup.inboxes.1.payload.total', '250.00')
+            ->assertJsonPath('lookup.sync_maps.0.entity_type', 'payment')
+            ->assertJsonPath('lookup.sync_maps.0.amount', '100.00')
+            ->assertJsonMissing(['name' => 'Do Not Expose Patient Name'])
+            ->assertJsonMissing(['phone' => '0500000000']);
+    }
+
     public function test_webhook_reprocess_requires_valid_token(): void
     {
         config(['whisper.webhook_verify_token' => 'secret-token']);

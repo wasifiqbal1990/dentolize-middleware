@@ -121,6 +121,10 @@ class DentolizeWebhookStatusController extends Controller
             $body['lookup'] = $this->lookup((string) $request->query('dentolize_id'));
         }
 
+        if ($request->filled('patient_id')) {
+            $body['lookup'] = $this->lookupPatient((string) $request->query('patient_id'));
+        }
+
         return response()->json($body);
     }
 
@@ -197,6 +201,66 @@ class DentolizeWebhookStatusController extends Controller
         ];
     }
 
+    private function lookupPatient(string $patientId): array
+    {
+        $inboxes = Inbox::query()
+            ->where(function ($query) use ($patientId): void {
+                $query
+                    ->where('raw_payload->id', $patientId)
+                    ->orWhere('raw_payload->data->id', $patientId)
+                    ->orWhere('raw_payload->patient_id', $patientId)
+                    ->orWhere('raw_payload->patientId', $patientId)
+                    ->orWhere('raw_payload->data->patient_id', $patientId)
+                    ->orWhere('raw_payload->data->patientId', $patientId);
+            })
+            ->latest('id')
+            ->limit(25)
+            ->get();
+
+        $dentolizeIds = $inboxes
+            ->map(fn (Inbox $inbox): ?string => $this->payloadDentolizeId($inbox->raw_payload))
+            ->filter()
+            ->push($patientId)
+            ->unique()
+            ->values();
+
+        $syncMaps = SyncMap::query()
+            ->whereIn('dentolize_id', $dentolizeIds)
+            ->orWhere('dentolize_number', $patientId)
+            ->latest('id')
+            ->limit(25)
+            ->get();
+
+        return [
+            'patient_id' => $patientId,
+            'sync_maps' => $syncMaps->map(fn (SyncMap $map): array => [
+                'id' => $map->id,
+                'entity_type' => $map->entity_type,
+                'dentolize_id' => $map->dentolize_id,
+                'dentolize_number' => $map->dentolize_number,
+                'qoyod_id' => $map->qoyod_id,
+                'qoyod_reference' => $map->qoyod_reference,
+                'amount' => $map->amount,
+                'status' => $map->status,
+                'last_error' => $this->truncate($map->last_error),
+                'attempts' => $map->attempts,
+                'last_attempt_at' => optional($map->last_attempt_at)->toIso8601String(),
+                'synced_at' => optional($map->synced_at)->toIso8601String(),
+                'latest_qoyod_request' => $this->latestQoyodRequest($map),
+            ]),
+            'inboxes' => $inboxes->map(fn (Inbox $inbox): array => [
+                'id' => $inbox->id,
+                'dentolize_event_id' => $inbox->dentolize_event_id,
+                'event_type' => $inbox->event_type,
+                'processing_status' => $inbox->processing_status,
+                'last_error' => $this->truncate($inbox->headers['last_error'] ?? null),
+                'payload' => $this->safePayloadSnapshot($inbox->raw_payload),
+                'received_at' => optional($inbox->received_at)->toIso8601String(),
+                'processed_at' => optional($inbox->processed_at)->toIso8601String(),
+            ]),
+        ];
+    }
+
     private function latestQoyodRequest(SyncMap $map): ?array
     {
         $auditLog = AuditLog::query()
@@ -236,6 +300,14 @@ class DentolizeWebhookStatusController extends Controller
             'amount' => $data['amount'] ?? null,
             'invoice_line_ids' => $data['invoice_line_ids'] ?? null,
         ], fn ($value): bool => $value !== null);
+    }
+
+    private function payloadDentolizeId(array $payload): ?string
+    {
+        $data = isset($payload['data']) && is_array($payload['data']) ? $payload['data'] : $payload;
+        $id = $data['id'] ?? null;
+
+        return $id === null ? null : (string) $id;
     }
 
     private function safeQoyodRequestSnapshot(array $request): array
