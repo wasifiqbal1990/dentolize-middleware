@@ -125,6 +125,12 @@ class DentolizeWebhookStatusController extends Controller
             $body['lookup'] = $this->lookupPatient((string) $request->query('patient_id'));
         }
 
+        if ($request->boolean('invoice_payload_audit')) {
+            $body['invoice_payload_audit'] = $this->invoicePayloadAudit(
+                max(1, min((int) $request->query('audit_limit', 25), 100)),
+            );
+        }
+
         return response()->json($body);
     }
 
@@ -300,6 +306,103 @@ class DentolizeWebhookStatusController extends Controller
             'amount' => $data['amount'] ?? null,
             'invoice_line_ids' => $data['invoice_line_ids'] ?? null,
         ], fn ($value): bool => $value !== null);
+    }
+
+    private function invoicePayloadAudit(int $limit): array
+    {
+        $inboxes = Inbox::query()
+            ->whereIn('event_type', ['NEW_INVOICE', 'New Invoice', 'فاتورة جديدة'])
+            ->latest('id')
+            ->limit($limit)
+            ->get();
+
+        return [
+            'limit' => $limit,
+            'items' => $inboxes->map(function (Inbox $inbox): array {
+                $data = isset($inbox->raw_payload['data']) && is_array($inbox->raw_payload['data'])
+                    ? $inbox->raw_payload['data']
+                    : $inbox->raw_payload;
+
+                $paymentFields = $this->paymentCandidateFields($data);
+
+                return [
+                    'inbox_id' => $inbox->id,
+                    'dentolize_event_id' => $inbox->dentolize_event_id,
+                    'event_type' => $inbox->event_type,
+                    'received_at' => optional($inbox->received_at)->toIso8601String(),
+                    'invoice' => [
+                        'id' => $data['id'] ?? null,
+                        'patient_id' => $data['patient_id'] ?? $data['patientId'] ?? null,
+                        'file_no' => $data['file_no'] ?? null,
+                        'reference_no' => $data['reference_no'] ?? null,
+                        'total' => $data['total'] ?? null,
+                        'subtotal' => $data['subtotal'] ?? null,
+                        'tax' => $data['tax'] ?? null,
+                        'discount' => $data['discount'] ?? null,
+                    ],
+                    'top_level_keys' => array_values(array_keys($data)),
+                    'payment_candidate_fields' => $paymentFields,
+                    'has_payment_candidate_fields' => $paymentFields !== [],
+                ];
+            }),
+        ];
+    }
+
+    private function paymentCandidateFields(array $payload, string $prefix = ''): array
+    {
+        $matches = [];
+
+        foreach ($payload as $key => $value) {
+            $path = $prefix === '' ? (string) $key : $prefix.'.'.$key;
+
+            if (is_array($value)) {
+                $matches = [
+                    ...$matches,
+                    ...$this->paymentCandidateFields($value, $path),
+                ];
+
+                continue;
+            }
+
+            if (! is_scalar($value) && $value !== null) {
+                continue;
+            }
+
+            if (! $this->isPaymentCandidateKey($path)) {
+                continue;
+            }
+
+            $matches[$path] = $value;
+        }
+
+        return $matches;
+    }
+
+    private function isPaymentCandidateKey(string $path): bool
+    {
+        $key = strtolower(str_replace(['-', ' '], '_', $path));
+
+        foreach ([
+            'paid',
+            'payment',
+            'receipt',
+            'remaining',
+            'balance',
+            'due',
+            'outstanding',
+            'collected',
+            'received',
+            'cash',
+            'card',
+            'method',
+            'status',
+        ] as $needle) {
+            if (str_contains($key, $needle)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function payloadDentolizeId(array $payload): ?string

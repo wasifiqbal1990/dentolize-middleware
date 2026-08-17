@@ -841,6 +841,45 @@ class WebhookAndHandlersTest extends TestCase
             ->assertJsonMissing(['phone' => '0500000000']);
     }
 
+    public function test_webhook_status_can_audit_invoice_payload_payment_fields_without_patient_details(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        Inbox::query()->create([
+            'dentolize_event_id' => 'evt-invoice-audit-1',
+            'event_type' => 'NEW_INVOICE',
+            'raw_payload' => [
+                'type' => 'NEW_INVOICE',
+                'id' => 'invoice-audit-1',
+                'name' => 'Do Not Expose Patient Name',
+                'phone' => '0500000000',
+                'patient_id' => 'patient-audit-1',
+                'total' => '115.00',
+                'subtotal' => '100.00',
+                'paid_amount' => '50.00',
+                'remaining_amount' => '65.00',
+                'payment_method' => 'Cash',
+                'status' => 'Partially Paid',
+            ],
+            'headers' => [],
+            'processing_status' => 'done',
+            'received_at' => now(),
+            'processed_at' => now(),
+        ]);
+
+        $response = $this->getJson('/webhooks/dentolize/status?verify_token=secret-token&invoice_payload_audit=1');
+
+        $response
+            ->assertOk()
+            ->assertJsonPath('invoice_payload_audit.items.0.invoice.id', 'invoice-audit-1')
+            ->assertJsonPath('invoice_payload_audit.items.0.payment_candidate_fields.paid_amount', '50.00')
+            ->assertJsonPath('invoice_payload_audit.items.0.payment_candidate_fields.remaining_amount', '65.00')
+            ->assertJsonPath('invoice_payload_audit.items.0.payment_candidate_fields.payment_method', 'Cash')
+            ->assertJsonPath('invoice_payload_audit.items.0.payment_candidate_fields.status', 'Partially Paid')
+            ->assertJsonMissing(['name' => 'Do Not Expose Patient Name'])
+            ->assertJsonMissing(['phone' => '0500000000']);
+    }
+
     public function test_webhook_reprocess_requires_valid_token(): void
     {
         config(['whisper.webhook_verify_token' => 'secret-token']);
