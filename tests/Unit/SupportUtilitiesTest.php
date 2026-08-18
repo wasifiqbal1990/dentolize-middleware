@@ -29,6 +29,7 @@ class SupportUtilitiesTest extends TestCase
     {
         $this->assertSame('249.00', Money::normalize('249'));
         $this->assertSame('249.50', Money::normalize('249.5'));
+        $this->assertSame('55.65', Money::normalize(55.65));
         $this->assertSame('0.00', Money::normalize(null));
     }
 }
