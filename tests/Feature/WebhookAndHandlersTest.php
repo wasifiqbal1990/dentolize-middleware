@@ -535,6 +535,68 @@ class WebhookAndHandlersTest extends TestCase
         ]);
     }
 
+    public function test_webhook_processes_dentolize_top_level_payment_payload(): void
+    {
+        config(['whisper.webhook_verify_token' => 'secret-token']);
+
+        $patientId = '04f5ba15-5677-456d-a9db-272c2294e272';
+        $invoiceId = 'ed75617f-ad65-42c1-906e-f5e767f551e4';
+        $paymentId = '87c759c5-456e-4641-9dc3-1323e0c9c154';
+
+        $this->postJson('/webhooks/dentolize?verify_token=secret-token', [
+            'version' => 'v1.0',
+            'type' => 'NEW_PATIENT',
+            'id' => $patientId,
+            'name' => 'man test',
+            'file_no' => null,
+            'reference_no' => 66,
+            'nationalId' => null,
+            'phone' => '+20232323232',
+            'mobile' => '232323232',
+        ])->assertOk()->assertJson(['status' => 'received']);
+
+        $this->postJson('/webhooks/dentolize?verify_token=secret-token', [
+            'version' => 'v1.0',
+            'type' => 'NEW_INVOICE',
+            'id' => $invoiceId,
+            'total' => 259.2,
+            'tax' => 0,
+            'discount' => 28.8,
+            'subtotal' => 288,
+            'taxPercent' => 0,
+            'reference_no' => 355,
+            'invoice_line_ids' => [[
+                'product_id' => '4be469c3-a707-4564-b4d2-30899368b493',
+                'quantity' => 1,
+                'price_unit' => 288,
+                'total' => 259.2,
+                'name' => 'Zirconium crown',
+                'service_id' => '906a16db-346e-47a8-8662-8cf9f6cdf2ac',
+            ]],
+            'patient_id' => $patientId,
+        ])->assertOk()->assertJson(['status' => 'received']);
+
+        $this->postJson('/webhooks/dentolize?verify_token=secret-token', [
+            'version' => 'v1.0',
+            'type' => 'NEW_PAYMENT',
+            'id' => $paymentId,
+            'amount' => 100,
+            'payment_type' => 'CASH',
+            'payment_sub_type' => null,
+            'invoice_id' => $invoiceId,
+            'treasury_id' => '8259e7f6-7e8e-44fd-9407-ca8ae7dce7d3',
+            'patient_id' => $patientId,
+            'bound_type' => 'outbound',
+        ])->assertOk()->assertJson(['status' => 'received']);
+
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'payment',
+            'dentolize_id' => $paymentId,
+            'amount' => '100.00',
+            'status' => 'transferred',
+        ]);
+    }
+
     public function test_expense_handler_creates_simple_bill(): void
     {
         $syncMap = app(ExpenseHandler::class)->handle($this->expensePayload());
