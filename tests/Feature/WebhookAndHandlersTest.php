@@ -597,6 +597,39 @@ class WebhookAndHandlersTest extends TestCase
         ]);
     }
 
+    public function test_invoice_handler_uses_dentolize_patient_data_dependency(): void
+    {
+        $syncMap = app(InvoiceHandler::class)->handle([
+            'version' => 'v1.0',
+            'type' => 'NEW_INVOICE',
+            'id' => 'ed75617f-ad65-42c1-906e-f5e767f551e4',
+            'total' => 259.2,
+            'tax' => 0,
+            'discount' => 28.8,
+            'subtotal' => 288,
+            'taxPercent' => 0,
+            'reference_no' => 355,
+            'patient_id' => '04f5ba15-5677-456d-a9db-272c2294e272',
+            'patient_data' => [
+                'id' => '04f5ba15-5677-456d-a9db-272c2294e272',
+                'name' => 'man test',
+                'file_no' => null,
+                'reference_no' => 66,
+                'nationalId' => null,
+                'phone' => '+20232323232',
+                'mobile' => '232323232',
+            ],
+        ]);
+
+        $this->assertSame('transferred', $syncMap->status);
+        $this->assertDatabaseHas('sync_maps', [
+            'entity_type' => 'patient',
+            'dentolize_id' => '04f5ba15-5677-456d-a9db-272c2294e272',
+            'dentolize_number' => '66',
+            'status' => 'transferred',
+        ]);
+    }
+
     public function test_expense_handler_creates_simple_bill(): void
     {
         $syncMap = app(ExpenseHandler::class)->handle($this->expensePayload());

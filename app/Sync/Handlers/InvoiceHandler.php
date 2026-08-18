@@ -134,6 +134,10 @@ class InvoiceHandler
             return $this->patientHandler->handle($payload['patient']);
         }
 
+        if (isset($payload['patient_data']) && is_array($payload['patient_data'])) {
+            return $this->patientHandler->handle($payload['patient_data']);
+        }
+
         $patientDentolizeId = (string) ($payload['patient_id'] ?? $payload['patientId'] ?? '');
 
         if ($patientDentolizeId !== '') {
